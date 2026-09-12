@@ -1,0 +1,45 @@
+name: Contracts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build-and-test:
+    name: Build, reproducible hashes, lint, test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ton-blockchain/setup-acton@2d38fd579e1bf8753a3e0cff9ad695612b98a676 # v1.0.0
+      # keep the committed snapshot aside, rebuild from sources, and require identical code hashes:
+      # anyone can see that build/*.json (what mainnet runs) is exactly what these sources compile to
+      - name: Rebuild and compare with the committed build/ snapshot
+        run: |
+          mv build build.committed
+          acton build
+          node -e '
+            const fs = require("fs");
+            let bad = 0;
+            for (const f of fs.readdirSync("build.committed")) {
+              if (!f.endsWith(".json")) continue;
+              const a = JSON.parse(fs.readFileSync("build.committed/" + f, "utf8")).hash;
+              const b = fs.existsSync("build/" + f) ? JSON.parse(fs.readFileSync("build/" + f, "utf8")).hash : null;
+              console.log((a === b ? "OK   " : "DIFF ") + f.replace(".json", "") + "  " + a);
+              if (a !== b) bad++;
+            }
+            process.exit(bad ? 1 : 0);
+          '
+      # formatting drift predates the formatter shipped with Acton 1.1: reported, not blocking
+      - run: acton fmt --check
+        continue-on-error: true
+      - run: acton check --output-format github
+      - run: acton test

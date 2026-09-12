@@ -1,0 +1,16 @@
+# Acton
+.acton/
+gen/
+dist/
+.logs/
+
+# local
+.env
+.env.*
+*.mnemonic
+wallets*.toml*
+global.*.toml
+node_modules/
+.DS_Store
+
+# build/ is committed on purpose: it is the snapshot the deployed code hashes are checked against

@@ -1,0 +1,227 @@
+openapi: 3.1.0
+info:
+  title: ONRANK public integration API
+  version: "1.0"
+  description: |
+    Read-only, keyless API for trading bots, wallets and indexers. `/tx` returns an **unsigned** TON Connect message
+    that the user's wallet signs — ONRANK never signs anything. Amounts are decimal strings in smallest units
+    (nanoTON for TON, 9-decimals units for coins). Rate limit: 120 requests / minute / IP.
+servers:
+  - url: https://onrank.lol
+paths:
+  /api/v1/coins:
+    get:
+      summary: Visible coins, newest first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 100 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0, maximum: 10000 } }
+      responses:
+        "200":
+          description: OK (public cache 5 s, CORS *)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Coin" } }
+  /api/v1/coins/{seq}:
+    get:
+      summary: One coin with its live market state (3 s cache)
+      parameters: [{ $ref: "#/components/parameters/seq" }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Coin"
+                  - type: object
+                    properties:
+                      marketState: { $ref: "#/components/schemas/MarketState" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/coins/{seq}/quote:
+    get:
+      summary: Exact contract quote (get_buy_quote / get_sell_quote)
+      parameters:
+        - { $ref: "#/components/parameters/seq" }
+        - { $ref: "#/components/parameters/side" }
+        - { $ref: "#/components/parameters/amount" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/coins/{seq}/tx:
+    get:
+      summary: Fresh quote + unsigned TON Connect message for the user's wallet
+      description: |
+        Buy on the curve or the pool, sell through the user's RewardWallet — the API picks the live market.
+        Refuses buys on sell-only (v1) coins (`sell_only`), trades on a closed curve (`curve_closed`, 409: refresh the
+        coin — it graduated) and anything that would give a zero `minOut`.
+      parameters:
+        - { $ref: "#/components/parameters/seq" }
+        - { $ref: "#/components/parameters/side" }
+        - { $ref: "#/components/parameters/amount" }
+        - { name: slippageBps, in: query, schema: { type: integer, default: 100, minimum: 0, maximum: 5000 }, description: "1 % = 100" }
+        - { name: from, in: query, required: true, schema: { type: string }, description: "wallet that will sign (basechain)" }
+      responses:
+        "200":
+          description: no-store
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tx" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/trades:
+    get:
+      summary: Indexed trades across visible coins, oldest first, cursor-paged
+      parameters:
+        - { name: since, in: query, schema: { type: integer }, description: unix seconds (exclusive with afterId) }
+        - { name: afterId, in: query, schema: { type: integer }, description: trade id of the last row seen }
+        - { name: limit, in: query, schema: { type: integer, default: 200, maximum: 500 } }
+        - { name: seq, in: query, schema: { type: string }, description: restrict to one coin }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Trade" } }
+                  next:
+                    type: [object, "null"]
+                    properties: { since: { type: integer }, afterId: { type: integer } }
+  /api/dexscreener/latest-block:
+    get:
+      summary: DexScreener adapter — latest indexed "block" (unix timestamp)
+      responses: { "200": { description: "{ block: { blockNumber, blockTimestamp } }" } }
+  /api/dexscreener/asset:
+    get:
+      summary: DexScreener adapter — asset by jetton master
+      parameters: [{ name: id, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: "{ asset }" }, "404": { $ref: "#/components/responses/Error" } }
+  /api/dexscreener/pair:
+    get:
+      summary: DexScreener adapter — pair (coin / TON) by jetton master
+      parameters: [{ name: id, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: "{ pair }" }, "404": { $ref: "#/components/responses/Error" } }
+  /api/dexscreener/events:
+    get:
+      summary: DexScreener adapter — swaps with fromBlock ≤ ts ≤ toBlock (window ≤ 86 400 s)
+      parameters:
+        - { name: fromBlock, in: query, required: true, schema: { type: integer } }
+        - { name: toBlock, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: "{ events: Swap[] }" }, "400": { $ref: "#/components/responses/Error" } }
+components:
+  parameters:
+    seq: { name: seq, in: path, required: true, schema: { type: string, pattern: "^\\d{1,18}$" } }
+    side: { name: side, in: query, required: true, schema: { type: string, enum: [buy, sell] } }
+    amount:
+      name: amount
+      in: query
+      required: true
+      schema: { type: string, pattern: "^\\d{1,30}$" }
+      description: "buy: nanoTON to swap (gas is added on top) · sell: coin units"
+  responses:
+    Error:
+      description: error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties: { error: { type: string }, message: { type: string } }
+  schemas:
+    Coin:
+      type: object
+      properties:
+        seq: { type: string }
+        name: { type: [string, "null"] }
+        symbol: { type: [string, "null"] }
+        imageUrl: { type: [string, "null"] }
+        master: { type: string, description: jetton master (TEP-74) }
+        curve: { type: string }
+        pool: { type: [string, "null"] }
+        market: { type: string, enum: [curve, pool] }
+        version: { type: integer, enum: [1, 2] }
+        sellOnly: { type: boolean }
+        decimals: { type: integer, const: 9 }
+        createdAt: { type: integer }
+        graduatedAt: { type: [integer, "null"] }
+        lastPriceNano: { type: [string, "null"], description: nanoTON per whole coin }
+        volumeTon: { type: string }
+        volume24hTon: { type: string }
+        trades: { type: integer }
+        holders: { type: integer }
+        realTon: { type: string }
+        links:
+          type: object
+          properties: { app: { type: string }, page: { type: string } }
+    MarketState:
+      oneOf:
+        - type: object
+          properties:
+            kind: { const: curve }
+            address: { type: string }
+            open: { type: boolean }
+            virtualTon: { type: string }
+            virtualToken: { type: string }
+            realTon: { type: string }
+            sold: { type: string }
+            feeBps: { type: integer }
+            buyGas: { type: string }
+            priceNano: { type: string }
+        - type: object
+          properties:
+            kind: { const: pool }
+            address: { type: string }
+            reserveTon: { type: string }
+            reserveCoin: { type: string }
+            lpFeeBps: { type: integer }
+            protocolFeeBps: { type: integer }
+            swapGas: { type: string }
+            priceNano: { type: string }
+    Quote:
+      type: object
+      properties:
+        seq: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        market: { type: string, enum: [curve, pool] }
+        amountIn: { type: string }
+        amountOut: { type: string, description: "buy: coin units · sell: nanoTON net of fees" }
+        fee: { type: string }
+        attachTon: { type: string, description: nanoTON to attach to the message }
+        priceNano: { type: string }
+        validUntil: { type: integer }
+    Tx:
+      type: object
+      properties:
+        quote: { $ref: "#/components/schemas/Quote" }
+        slippageBps: { type: integer }
+        minOut: { type: string }
+        message:
+          type: object
+          description: TON Connect message
+          properties:
+            address: { type: string }
+            amount: { type: string, description: nanoTON }
+            payload: { type: string, description: base64 BoC }
+        rewardWallet: { type: [string, "null"] }
+        validUntil: { type: integer }
+        notes: { type: array, items: { type: string } }
+    Trade:
+      type: object
+      properties:
+        id: { type: integer }
+        seq: { type: string }
+        market: { type: string, enum: [curve, pool] }
+        side: { type: string, enum: [buy, sell] }
+        trader: { type: string }
+        ton: { type: string }
+        coin: { type: string }
+        fee: { type: string }
+        priceNano: { type: string }
+        ts: { type: integer }
+        txRef: { type: string, description: "<tx hash base64>#<out-message index>" }

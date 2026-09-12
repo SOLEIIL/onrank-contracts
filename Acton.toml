@@ -1,0 +1,141 @@
+[package]
+name = "gramdesks-contracts"
+description = "GRAMDESKS TON smart contracts (Tolk)"
+version = "0.1.0"
+license = "MIT"
+
+[toolchain]
+acton = "1.1.0"
+
+# --- Desk system -----------------------------------------------------------
+[contracts.DeskCollection]
+display-name = "DeskCollection"
+src = "contracts/desk/DeskCollection.tolk"
+depends = []
+
+[contracts.DeskItem]
+display-name = "DeskItem"
+src = "contracts/desk/DeskItem.tolk"
+depends = []
+
+[contracts.DeskMinter]
+display-name = "DeskMinter"
+src = "contracts/desk/DeskMinter.tolk"
+depends = []
+
+[contracts.Pot]
+display-name = "Pot"
+src = "contracts/pot/Pot.tolk"
+depends = []
+
+[contracts.PotRelay]
+display-name = "PotRelay"
+src = "contracts/pot/PotRelay.tolk"
+depends = []
+
+# --- Launcher -------------------------------------------------------------
+[contracts.FeeSplitter]
+display-name = "FeeSplitter"
+src = "contracts/launcher/FeeSplitter.tolk"
+depends = []
+
+[contracts.RewardWallet]
+display-name = "RewardWallet"
+src = "contracts/launcher/RewardWallet.tolk"
+depends = []
+
+[contracts.RewardMaster]
+display-name = "RewardMaster"
+src = "contracts/launcher/RewardMaster.tolk"
+depends = ["RewardWallet"]
+
+[contracts.RewardVault]
+display-name = "RewardVault"
+src = "contracts/launcher/RewardVault.tolk"
+depends = []
+
+[contracts.Pool]
+display-name = "Pool"
+src = "contracts/launcher/Pool.tolk"
+depends = []
+
+[contracts.Curve]
+display-name = "Curve"
+src = "contracts/launcher/Curve.tolk"
+depends = ["Pool"]
+
+[contracts.Factory]
+display-name = "Factory"
+src = "contracts/launcher/Factory.tolk"
+depends = []
+
+[contracts.BuybackVault]
+display-name = "BuybackVault"
+src = "contracts/launcher/BuybackVault.tolk"
+depends = []
+
+# --- Launcher v2 (docs/10-launcher-v2.md; v1 sources above stay untouched for mainnet verification) ---
+[contracts.RewardWalletV2]
+display-name = "RewardWalletV2"
+src = "contracts/launcher-v2/RewardWalletV2.tolk"
+depends = []
+
+[contracts.RewardMasterV2]
+display-name = "RewardMasterV2"
+src = "contracts/launcher-v2/RewardMasterV2.tolk"
+depends = ["RewardWalletV2"]
+
+[contracts.FeeSplitterV2]
+display-name = "FeeSplitterV2"
+src = "contracts/launcher-v2/FeeSplitterV2.tolk"
+depends = []
+
+[contracts.PoolV2]
+display-name = "PoolV2"
+src = "contracts/launcher-v2/PoolV2.tolk"
+depends = []
+
+[contracts.CurveV2]
+display-name = "CurveV2"
+src = "contracts/launcher-v2/CurveV2.tolk"
+depends = ["PoolV2"]
+
+[contracts.RewardVaultV2]
+display-name = "RewardVaultV2"
+src = "contracts/launcher-v2/RewardVaultV2.tolk"
+depends = []
+
+[contracts.FactoryV2]
+display-name = "FactoryV2"
+src = "contracts/launcher-v2/FactoryV2.tolk"
+depends = []
+
+# --- Test only: DeDust look-alike for testnet rehearsals (never deployed on mainnet) ---
+[contracts.MockDex]
+display-name = "MockDex"
+src = "contracts/test/MockDex.tolk"
+depends = []
+
+# --- Test fixtures: standard TEP-74 jetton (vendored from the Acton template) --------
+[contracts.JettonMinter]
+display-name = "JettonMinter"
+src = "contracts/vendor/jetton/JettonMinter.tolk"
+depends = ["JettonWallet"]
+
+[contracts.JettonWallet]
+display-name = "JettonWallet"
+src = "contracts/vendor/jetton/JettonWallet.tolk"
+depends = []
+
+[test]
+
+[fmt]
+width = 100
+ignore = ["contracts/vendor/**"]
+
+[import-mappings]
+acton = ".acton"
+contracts = "contracts"
+gen = "gen"
+tests = "tests"
+wrappers = "wrappers"
