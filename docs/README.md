@@ -8,10 +8,10 @@ This guide is everything an integrator needs to **quote, buy and sell any ONRANK
 without going through the ONRANK app. Nothing here requires an API key, and nothing here ever needs a private key on a
 server: you build a message, the user signs it in their wallet.
 
-- Contracts: Tolk 1.4.1. Code hashes below match mainnet (see [VERIFY.md](./VERIFY.md)); sources are published in
-  the `onrank-contracts` mirror once it is live (until then, the hashes are the guarantee).
-- SDK: `@onrank/sdk` — pure TypeScript builders and quote formulas, tested bit-for-bit against the app (npm publication
-  pending; every message it builds is specified in § 4 so you can also write it yourself).
+- Contracts: Tolk 1.4.1, sources at [github.com/SOLEIIL/onrank-contracts](https://github.com/SOLEIIL/onrank-contracts) (MIT, with the compiled
+  snapshot; CI rebuilds and requires identical code hashes). Hashes below match mainnet (see [VERIFY.md](./VERIFY.md)).
+- SDK: [`@onrank/sdk`](https://github.com/SOLEIIL/onrank-sdk) — pure TypeScript builders and quote formulas, tested bit-for-bit against the app
+  (npm publication pending: clone the repository; every message it builds is also specified in § 4).
 - REST API: [openapi.yaml](./openapi.yaml) — `GET /api/v1/coins`, `/coins/{seq}`, `/coins/{seq}/quote`, `/coins/{seq}/tx`,
   `/trades`, plus a [DexScreener adapter](#dexscreener-adapter).
 - Events: [EVENTS.md](./EVENTS.md) — how to detect trades and graduations from the chain.

@@ -4,9 +4,8 @@ Two levels, from cheapest to strongest.
 
 ## 1. Code hashes (anyone, one command)
 
-`contracts/build/<Name>.json` holds the compiled code of every contract (`code_boc64`, `hash`). The script
-`contracts/scripts/check-code-hashes.mjs` (shipped with the sources) asks toncenter for the code hash of each deployed
-account and compares. Without the sources you can do the same by hand: toncenter v3
+The public repository [onrank-contracts](https://github.com/SOLEIIL/onrank-contracts) ships `build/<Name>.json` (compiled code and hash of every contract) and
+`scripts/check-code-hashes.mjs`, which asks toncenter for the code hash of each deployed account and compares. Without the sources you can do the same by hand: toncenter v3
 `accountStates?address=<addr>` returns `code_hash`; compare it with the table in [README.md § 2](./README.md#2-contracts-mainnet).
 
 ```bash
@@ -42,7 +41,7 @@ Shared code: `contracts/contracts/common/*` and `contracts/contracts/vendor/jett
 Publishing the sources through the TON verifier makes Tonviewer / Tonscan show "verified" with the code inline. It is
 a signed, public action performed by the deployer; the steps are:
 
-1. Publish the `contracts/` tree of this repository (the public mirror `onrank-contracts` carries exactly these files).
+1. Sources: [onrank-contracts](https://github.com/SOLEIIL/onrank-contracts) (published 2026-09-12; its CI reproduces the hashes from the sources).
 2. On [verifier.ton.org](https://verifier.ton.org): language **Tolk**, compiler **1.4.1**, add the entry file and every
    file it includes (same relative paths), target the deployed address, submit. Repeat per contract in the table above.
 3. Check that the explorer shows the same hash as `check-code-hashes.mjs`.
