@@ -1,7 +1,7 @@
 import "@stdlib/strings"
-import "@contracts/common/consts"
-import "@contracts/common/errors"
-import "@contracts/common/tep-nft"
+import "../common/consts"
+import "../common/errors"
+import "../common/tep-nft"
 import "desk-messages"
 import "desk-types"
 

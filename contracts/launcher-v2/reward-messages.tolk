@@ -1,4 +1,4 @@
-import "@contracts/vendor/jetton/messages"
+import "../vendor/jetton/messages"
 
 // Launcher v2 message set. Opcodes shared with v1 keep the v1 semantics; layouts that changed
 // (SettleAck, CurveGraduated) are only ever exchanged between v2 contracts. Bounce handlers read

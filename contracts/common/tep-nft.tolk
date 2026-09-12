@@ -1,6 +1,6 @@
 // TEP-62 / TEP-64 / TEP-66 message layouts (NFT standard). Jetton (TEP-74) layouts live in
 // vendor/jetton/messages.tolk and are imported from there to avoid duplicate definitions.
-import "@contracts/vendor/jetton/messages"
+import "../vendor/jetton/messages"
 
 struct RoyaltyParams {
     numerator: uint16

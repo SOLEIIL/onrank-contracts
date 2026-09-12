@@ -1,8 +1,8 @@
 import "@stdlib/reflection"
-import "@contracts/common/consts"
-import "@contracts/common/errors"
-import "@contracts/common/tep-nft"
-import "@contracts/vendor/jetton/messages"
+import "../common/consts"
+import "../common/errors"
+import "../common/tep-nft"
+import "../vendor/jetton/messages"
 import "desk-messages"
 import "desk-types"
 

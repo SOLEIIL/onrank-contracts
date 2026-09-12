@@ -1,5 +1,5 @@
-import "@contracts/common/errors"
-import "@contracts/vendor/jetton/messages"
+import "../common/errors"
+import "../vendor/jetton/messages"
 import "factory-messages"
 import "factory-types"
 import "fee-splitter-types"

@@ -11,7 +11,7 @@ server: you build a message, the user signs it in their wallet.
 - Contracts: Tolk 1.4.1, sources at [github.com/SOLEIIL/onrank-contracts](https://github.com/SOLEIIL/onrank-contracts) (MIT, with the compiled
   snapshot; CI rebuilds and requires identical code hashes). Hashes below match mainnet (see [VERIFY.md](./VERIFY.md)).
 - SDK: [`@onrank/sdk`](https://github.com/SOLEIIL/onrank-sdk) — pure TypeScript builders and quote formulas, tested bit-for-bit against the app
-  (npm publication pending: clone the repository; every message it builds is also specified in § 4).
+  (`npm i @onrank/sdk @ton/core`; every message it builds is also specified in § 4).
 - REST API: [openapi.yaml](./openapi.yaml) — `GET /api/v1/coins`, `/coins/{seq}`, `/coins/{seq}/quote`, `/coins/{seq}/tx`,
   `/trades`, plus a [DexScreener adapter](#dexscreener-adapter).
 - Events: [EVENTS.md](./EVENTS.md) — how to detect trades and graduations from the chain.
@@ -273,4 +273,5 @@ deep link above.
 
 `GET /api/dexscreener/latest-block`, `/asset?id=`, `/pair?id=`, `/events?fromBlock=&toBlock=` implement the
 DexScreener adapter spec over the indexed trades (pair id = asset0 id = the coin's master address, asset1 = TON,
-block = unix time). Read-only, cached 10 s. The `asset1Id` label is agreed with DexScreener at listing time.
+block = unix time; `asset1Id` = the zero address `EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c`, how DEX Screener
+denotes native TON on every STON.fi / DeDust pair; `txnId` in hex). Read-only, cached 10 s.

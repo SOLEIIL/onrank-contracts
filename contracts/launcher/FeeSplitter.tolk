@@ -1,6 +1,6 @@
-import "@contracts/common/consts"
-import "@contracts/common/errors"
-import "@contracts/pot/pot-messages"
+import "../common/consts"
+import "../common/errors"
+import "../pot/pot-messages"
 import "fee-splitter-messages"
 import "fee-splitter-types"
 

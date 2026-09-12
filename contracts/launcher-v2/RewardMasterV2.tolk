@@ -1,8 +1,8 @@
-import "@gen/RewardWalletV2.code"
-import "@contracts/common/consts"
-import "@contracts/common/errors"
-import "@contracts/vendor/jetton/messages"
-import "@contracts/vendor/jetton/storage"
+import "../../gen/RewardWalletV2.code"
+import "../common/consts"
+import "../common/errors"
+import "../vendor/jetton/messages"
+import "../vendor/jetton/storage"
 import "reward-messages"
 import "reward-types"
 

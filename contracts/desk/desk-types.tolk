@@ -1,4 +1,4 @@
-import "@contracts/common/tep-nft"
+import "../common/tep-nft"
 
 // ---------------------------------------------------------------------------
 // DeskCollection storage

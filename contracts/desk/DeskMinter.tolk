@@ -1,8 +1,8 @@
-import "@contracts/common/consts"
-import "@contracts/common/errors"
-import "@contracts/vendor/jetton/messages"
+import "../common/consts"
+import "../common/errors"
+import "../vendor/jetton/messages"
 import "desk-messages"
-import "@contracts/pot/pot-messages"
+import "../pot/pot-messages"
 
 contract DeskMinter {
     author: "GRAMDESKS"

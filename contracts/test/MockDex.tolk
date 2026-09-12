@@ -1,7 +1,7 @@
-import "@contracts/common/consts"
-import "@contracts/common/dedust"
-import "@contracts/common/errors"
-import "@contracts/vendor/jetton/messages"
+import "../common/consts"
+import "../common/dedust"
+import "../common/errors"
+import "../vendor/jetton/messages"
 
 /// TEST ONLY (testnet rehearsals — DeDust has no testnet deployment). One contract plays both the DeDust native
 /// vault and a TON/jetton pool: it answers `estimate_swap_out` like a pool and executes `DedustNativeSwap` like the

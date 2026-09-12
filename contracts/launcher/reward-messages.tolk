@@ -1,4 +1,4 @@
-import "@contracts/vendor/jetton/messages"
+import "../vendor/jetton/messages"
 
 // ---------------------------------------------------------------------------
 // Wallet <-> Master
