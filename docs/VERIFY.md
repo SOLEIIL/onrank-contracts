@@ -38,13 +38,17 @@ Shared code: `contracts/contracts/common/*` and `contracts/contracts/vendor/jett
 
 ## 3. Source verification on explorers (verifier.ton.org)
 
-Publishing the sources through the TON verifier makes Tonviewer / Tonscan show "verified" with the code inline. It is
-a signed, public action performed by the deployer; the steps are:
+**Done on 2026-09-13.** The sources of every deployed contract are registered in the on-chain Sources Registry
+(mainnet, verifier `verifier.ton.org`), so Tonviewer / Tonscan show them as verified with the code inline:
+FactoryV2, CurveV2, RewardMasterV2, Pot, DeskMinter, DeskCollection, BuybackVault, PotRelay. Verification is keyed by
+**code hash**, so the curve and master of every coin created by this Factory are covered at once. Links:
+[verifier.ton.org/&lt;address&gt;](https://verifier.ton.org/UQB18IIqz56m9AAwNpX0Ai61_LNa4yquhT3QRNk4geiLwYWF) (Factory).
 
-1. Sources: [onrank-contracts](https://github.com/SOLEIIL/onrank-contracts) (published 2026-09-12; its CI reproduces the hashes from the sources).
-2. On [verifier.ton.org](https://verifier.ton.org): language **Tolk**, compiler **1.4.1**, add the entry file and every
-   file it includes (same relative paths), target the deployed address, submit. Repeat per contract in the table above.
-3. Check that the explorer shows the same hash as `check-code-hashes.mjs`.
+How it was done (reproducible from the public repository): `acton verify <Contract> --compiler-version 1.4.1 --net mainnet --tonconnect`,
+one contract at a time, the deployer's wallet paying the registry fee. The verifier backend compiles the uploaded
+sources itself and only signs when the hash matches — which is why the sources use plain relative imports (Acton's
+`@contracts/...` aliases are not understood by the backend).
 
-Not yet submitted (2026-09-12): the owner triggers each submission. Until then, level 1 gives an integrator the same
-guarantee from the command line.
+To re-check without trusting anyone: the registry `EQD-BJSVUJviud_Qv7Ymfd3qzXdrmV525e3YDzWQoHIAiInL` answers
+`get_source_item_address(sha256("verifier.ton.org"), code_hash)`; the returned account is active for every hash in
+[README.md § 2](./README.md#2-contracts-mainnet).
