@@ -242,6 +242,14 @@ Curves and pools emit **external out-messages** (TON "logs") whose destination i
 Only trust events emitted by accounts whose code hash is in the table above. `GET /api/v1/trades?since=<unix>` returns
 the same trades from our indexer if you prefer polling.
 
+### Spot price vs execution price
+
+`priceNano` on a trade remains the legacy **average execution price** (`ton × 1e9 / coin`). New responses also expose
+`executionPriceNano` with that explicit name and `spotPriceNano`, the market price immediately after the trade
+(`virtualTon × 1e9 / virtualToken` on a curve; `reserveTon × 1e9 / reserveCoin` on a pool). Coin responses keep
+`lastPriceNano` for compatibility and add `spotPriceNano`; use the spot field for price, chart and market-cap displays.
+The live `/api/v1/coins/{seq}` `marketState.priceNano` remains the most recent on-chain truth.
+
 ---
 
 ## 6. Security for integrators
@@ -255,8 +263,13 @@ the same trades from our indexer if you prefer polling.
 5. **Gas**: attach exactly what this document says; the contracts refund the excess. Under-funded messages bounce.
 6. **v1 coins are sell-only.** Refuse buys when `sellOnly` is true.
 7. **No auto-approve, no unlimited allowances** — there are none on TON, and a bot should never hold the user's coins.
-8. **Rate limits**: the public API allows a modest per-IP rate; cache `/coins` for a few seconds, use on-chain
-   get-methods for latency-sensitive quotes.
+8. **Rate limits**: the public API allows 120 requests per minute per IP (`429` + `retry-after` beyond); cache `/coins`
+   for a few seconds, use on-chain get-methods for latency-sensitive quotes.
+9. **Service levels**: lists are cached 5 s server-side, quotes and `/tx` read the chain on every call. A saturated RPC
+   answers `503 rpc_busy` with `Retry-After: 2`, an RPC timeout `504 rpc_timeout` — retry, never treat either as "no
+   coin". Live status: `GET https://onrank.lol/api/health` (public JSON: `ok`, indexer lag, per-worker staleness, RPC
+   counters). Nothing depends on the API alone: coins, reserves and metadata are on chain and the contracts are verified.
+   Breaking changes are announced two weeks ahead (contact below and the public repos' releases).
 
 ---
 

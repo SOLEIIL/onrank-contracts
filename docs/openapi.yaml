@@ -150,7 +150,8 @@ components:
         decimals: { type: integer, const: 9 }
         createdAt: { type: integer }
         graduatedAt: { type: [integer, "null"] }
-        lastPriceNano: { type: [string, "null"], description: nanoTON per whole coin }
+        lastPriceNano: { type: [string, "null"], description: "Legacy: average execution price of the latest trade, nanoTON per whole coin" }
+        spotPriceNano: { type: [string, "null"], description: "Market spot after the latest trade; prefer for price and MCAP displays" }
         volumeTon: { type: string }
         volume24hTon: { type: string }
         trades: { type: integer }
@@ -193,7 +194,7 @@ components:
         amountOut: { type: string, description: "buy: coin units · sell: nanoTON net of fees" }
         fee: { type: string }
         attachTon: { type: string, description: nanoTON to attach to the message }
-        priceNano: { type: string }
+        priceNano: { type: string, description: "Average execution price implied by this quote" }
         validUntil: { type: integer }
     Tx:
       type: object
@@ -222,6 +223,8 @@ components:
         ton: { type: string }
         coin: { type: string }
         fee: { type: string }
-        priceNano: { type: string }
+        priceNano: { type: string, description: "Legacy alias of executionPriceNano" }
+        executionPriceNano: { type: string, description: "Average execution price of this trade" }
+        spotPriceNano: { type: string, description: "Market spot immediately after this trade; falls back to execution price only for unbackfilled history" }
         ts: { type: integer }
         txRef: { type: string, description: "<tx hash base64>#<out-message index>" }
