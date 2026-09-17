@@ -77,4 +77,26 @@ enum Errors {
     PoolEmpty = 491
     MarketUnset = 492
     IndexOverflow = 493
+
+    // Predict (parimutuel markets) 5xx
+    NotFromOracle = 500
+    BettingClosed = 501
+    OpenNotLocked = 502
+    OpenAlreadyLocked = 503
+    AlreadyResolved = 504
+    NotResolved = 505
+    NotYetResolvable = 506
+    StaleOraclePrice = 507
+    BetTooSmall = 508
+    BetTooLarge = 509
+    PoolCapReached = 510
+    NotFromMarket = 511
+    NotFromPosition = 512
+    AlreadyClaimed = 513
+    ClaimInFlight = 514
+    VoidGraceNotElapsed = 515
+    ClaimWindowOpen = 516
+    NotFromHouse = 517
+    TargetNotReached = 518
+    BadPartner = 519
 }

@@ -15,12 +15,16 @@ server: you build a message, the user signs it in their wallet.
 - REST API: [openapi.yaml](./openapi.yaml) — `GET /api/v1/coins`, `/coins/{seq}`, `/coins/{seq}/quote`, `/coins/{seq}/tx`,
   `/trades`, plus a [DexScreener adapter](#dexscreener-adapter).
 - Events: [EVENTS.md](./EVENTS.md) — how to detect trades and graduations from the chain.
+- Prediction markets (parimutuel, GRAM): public reads under `/api/predict/*`, the partner API under `/api/partner/v1/*`
+  (`x-api-key`) and the embeddable widget — all in [openapi.yaml](./openapi.yaml) and the `@onrank/predict-sdk` README
+  ([onrank.lol/docs#predict-embed](https://onrank.lol/docs#predict-embed)); events and message opcodes in [EVENTS.md](./EVENTS.md).
 - Contact: [@soleil](https://t.me/soleil) · app: [t.me/OnRankBot](https://t.me/OnRankBot) · [onrank.lol/docs](https://onrank.lol/docs)
 
-**Vocabulary.** GRAM is what the app calls TON. A coin is identified by its `seq` (a number, e.g. `10001` for $RANK)
-and by its **master** (the TEP-74 jetton master). Its **curve** and later its **pool** are the contracts you trade
-with. A holder's coins sit in their **RewardWallet** (their jetton wallet for that coin). Amounts are decimal strings
-in smallest units: nanoTON for TON, 9-decimal units for coins.
+**Vocabulary.** Amounts are in GRAM (the TON coin, rebranded; on chain the unit is still nanoTON = 1e-9 GRAM). A
+coin is identified by its `seq` (a number, e.g. `10001` for $RANK) and by its **master** (the TEP-74 jetton master).
+Its **curve** and later its **pool** are the contracts you trade with. A holder's coins sit in their **RewardWallet**
+(their jetton wallet for that coin). Amounts are decimal strings in smallest units: nanoTON for GRAM, 9-decimal units
+for coins.
 
 ---
 
@@ -38,7 +42,7 @@ GET https://onrank.lol/api/v1/coins
 **2. Quote** — the exact number the contract will deliver.
 
 ```
-GET https://onrank.lol/api/v1/coins/10001/quote?side=buy&amount=5000000000        (5 TON, in nanoTON)
+GET https://onrank.lol/api/v1/coins/10001/quote?side=buy&amount=5000000000        (5 GRAM, in nanoTON)
 → { "amountOut": "1785969077031385", "fee": "50000000", "attachTon": "5150000000", "priceNano": "2799", … }
 ```
 
@@ -57,7 +61,7 @@ await tonConnectUI.sendTransaction({ validUntil: tx.validUntil, messages: [tx.me
 ```
 
 Selling is the same call with `side=sell&amount=<coin units>`: the message goes to the user's own RewardWallet and
-the master pays them in TON. That is the whole integration. Everything below explains what those messages are, so you
+the master pays them in GRAM. That is the whole integration. Everything below explains what those messages are, so you
 can also build them yourself (SDK or by hand), quote from your own RPC, and index trades from the chain.
 
 Errors come back as `{ "error": "sell_only" | "curve_closed" | "bad_amount" | …, "message": "…" }` with a 4xx status;
@@ -103,6 +107,8 @@ sold and claimed but not bought; do not route buys to them. The current $RANK is
 | DeskMinter (Rank minter) | `EQBAUS2t-elNMrkdZtv7Tl1pMZhTJrZqdogyCK-2UxmjjPzu` | `QdIxvaBs/3OE7xHOPy4bPP5SzHtMBriVW+TywiLifxA=` |
 | DeskCollection (Rank NFTs) | `EQBKCClSs3RhzCXqQrLf8uyUPUBuCmU4P4YGY51tJyNMYgMe` | `LHhgnY0QJjXpBWNkpYjjCJK1elxludK0gBHdLq4IYeU=` |
 | BuybackVault | `EQBtLFO9DvXI6WV0uraqVWu6qH8o7gQbk6Awfxg7Kj8Z_phO` | `WXP9MVAA2AT/dITksu2ewZGJo9hdBlV7LAeG/s6C9Xo=` |
+| Predict Market (one per question, deployed by the oracle keeper) | `address` in `GET /api/predict/markets/{id}` | `KurTLQ7zr71+vkw8SFl2fb9YrdQbvvtCu7HNcVm1Mac=` |
+| Predict BetPosition (one per bettor and market) | `get_position_address(owner)` on the market | `ja1kvZA/ablyu507mD9MWvm/VLfRO2JAJ6ugfTr9XWY=` |
 
 [VERIFY.md](./VERIFY.md) explains how to re-check every deployed hash yourself.
 **Never take a curve or pool address from user input**: resolve it from the Factory's `LaunchCreated` event, from the
@@ -120,7 +126,7 @@ All quotes are available on-chain (no dependency on ONRANK servers) and mirrored
 `state == 1` means open.
 
 ```
-amountIn   = attached − BUY_GAS                 BUY_GAS = 0.15 TON
+amountIn   = attached − BUY_GAS                 BUY_GAS = 0.15 GRAM
 fee        = amountIn × 100 / 10000
 net        = amountIn − fee
 out        = virtualToken × net / (virtualTon + net)          // integer division
@@ -141,7 +147,7 @@ Get-methods: `get_buy_quote(tonAttached) → (amountOut, fee)` (deducts BUY_GAS 
 `get_pool_data()` → `(reserveTon, reserveCoin, lpFeeBps, protocolFeeBps, volumeTon, nonce, master, splitter)`.
 
 ```
-amountIn    = attached − SWAP_GAS                SWAP_GAS = 0.15 TON (v2)
+amountIn    = attached − SWAP_GAS                SWAP_GAS = 0.15 GRAM (v2)
 lpFee       = amountIn × lpFeeBps / 10000        (100 bps today)
 protocolFee = amountIn × protocolFeeBps / 10000  (100 bps today)
 net         = amountIn − lpFee − protocolFee
@@ -165,7 +171,7 @@ wallet SDK). `queryId` is any 64-bit value you choose. Payloads are base64 BoC o
 
 ### 4.1 Buy on the curve
 
-Send to the **Curve** address, value = `tonIn + 0.15 TON`:
+Send to the **Curve** address, value = `tonIn + 0.15 GRAM`:
 
 ```
 Buy#43550002  queryId:uint64  minOut:coins  recipient:(Maybe Address)
@@ -175,11 +181,11 @@ Buy#43550002  queryId:uint64  minOut:coins  recipient:(Maybe Address)
 - `recipient = null` credits the sender. **Do not set `recipient` to a wallet that is not the signer** unless you are
   intentionally buying for someone else — a bot that buys with its own wallet and forwards coins is custodial.
 - Refusals bounce with: 478 `CurveNotOpen` (graduated — use the pool), 479 `SlippageExceeded`, 480 `BelowMinTrade`
-  (< 0.1 TON), 410 `InsufficientValue` (attached ≤ BUY_GAS).
+  (< 0.1 GRAM), 410 `InsufficientValue` (attached ≤ BUY_GAS).
 
 ### 4.2 Buy on the pool
 
-Send to the **Pool** address, value = `tonIn + 0.15 TON`:
+Send to the **Pool** address, value = `tonIn + 0.15 GRAM`:
 
 ```
 SwapTonForCoin#504f0001  queryId:uint64  minOut:coins
@@ -190,8 +196,8 @@ Refusals: 479 `SlippageExceeded`, 491 `PoolEmpty`, 410 `InsufficientValue`.
 ### 4.3 Sell (curve or pool — same message)
 
 Selling is a **burn of the coin on the user's own RewardWallet** carrying a `SellIntent`; the master then routes the
-sale to the curve or to the pool, whichever is live, and pays the user in TON. Send to the user's **RewardWallet**
-(`get_wallet_address(owner)` on the master), value = **0.19 TON** (0.16 required + margin, excess refunded):
+sale to the curve or to the pool, whichever is live, and pays the user in GRAM. Send to the user's **RewardWallet**
+(`get_wallet_address(owner)` on the master), value = **0.19 GRAM** (0.16 required + margin, excess refunded):
 
 ```
 AskToBurn#595f07bc  queryId:uint64  jettonAmount:coins  sendExcessesTo:(Maybe Address)  customPayload:(Maybe ^Cell)
@@ -279,6 +285,32 @@ Users reach the app through `https://t.me/OnRankBot?startapp=coin_<seq>-ref_<cod
 10% of the protocol's share of that user's fees (paid out by the team). **Trades sent directly on-chain by a bot carry
 no referral code** — attribution only exists inside the app. If you route users to the app for a coin page, use the
 deep link above.
+
+## 8. Embeddable Swap widget
+
+Let people buy your coin with whatever they hold, on your own site or app. Generator with live preview and copy-paste
+snippets: `https://onrank.lol/embed`. Paste the iframe as is; `embed.js` sizes it to its content.
+
+```
+https://onrank.lol/embed/swap?to=coin:<seq>&lock=to        # "buy my coin": the destination is fixed, the user picks what they pay with
+https://onrank.lol/embed/swap?from=coin:<seq>&lock=from    # "sell my coin" (for GRAM, another TON token, or BTC/ETH/SOL… through swap.bz)
+https://onrank.lol/embed/swap                              # any swap, including SOL → BTC through swap.bz
+```
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `to`, `from` | `gram`, `coin:<seq>`, `jetton:<master>` (any DEX-listed jetton; the xStocks swap with USDT only), `xchain:<asset id>` (any of swap.bz's ~190 assets: BTC, ETH, SOL, XMR, USDT on Tron…, on either side: `coin:<seq>` → `xchain:…` sells the coin and sends the GRAM to swap.bz in one signature) | free |
+| `lock` | `to`, `from`, `none` | `none` |
+| `amount` | decimal, pre-fills "You pay" | empty |
+| `theme` / `bg` / `radius` | `dark`\|`light` / `card`\|`transparent` / 0–32 | `dark` / `card` / 20 |
+| `footer` | `0` hides "Powered by ONRANK" | shown |
+
+What happens inside the widget is exactly the app's Swap: wallets connect inside the iframe (TON Connect), TON ↔ TON
+swaps are one signature, other chains go through a deposit address (swap.bz) with the whole follow-up handled in the
+widget. A swap between two other chains (SOL → BTC) needs no TON wallet at all: the user types the address to receive
+at, and the order is remembered per browser. Fees are the app's fees — 1 % to the coin's holders per ONRANK leg, 0.30 % on a DEX leg, swap.bz's 0.5 % on a
+cross-chain leg — nothing is added for embedding, and there is no partner commission or referral code on swaps. Only
+"Powered by ONRANK" links out. A swap in progress is resumed on the same site (browser storage is per origin).
 
 ---
 

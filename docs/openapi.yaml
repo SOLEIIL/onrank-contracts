@@ -6,6 +6,17 @@ info:
     Read-only, keyless API for trading bots, wallets and indexers. `/tx` returns an **unsigned** TON Connect message
     that the user's wallet signs — ONRANK never signs anything. Amounts are decimal strings in smallest units
     (nanoTON for TON, 9-decimals units for coins). Rate limit: 120 requests / minute / IP.
+
+    **Predict** (parimutuel prediction markets, `/api/predict/*`): keyless public reads (900 requests / minute / IP,
+    anonymous answers CDN-cached `public, s-maxage=2, stale-while-revalidate=5` + `vary: authorization`) and the
+    keyless `claim-for` builder for the embeddable widget. **Partner API** (`/api/partner/v1/*`): `x-api-key` header
+    (`onrk_` + 32 hex), 120 requests / minute / IP then 600 / minute / key, CORS judged on the partner's declared
+    origins (no Origin header = server-to-server, always accepted; no declared origin = server key, every browser
+    Origin refused; `*` = any origin), JSON bodies capped at 64 KiB (`413 payload_too_large`), every answer
+    `cache-control: no-store`. Every write endpoint returns an **unsigned** TON Connect message
+    `{ address, amount, payload }`; nothing moves until the user's wallet signs it. Errors are `{ error: <code> }`
+    with a 4xx / 5xx status; `429` carries `retry-after: 10`. `404 not_found` on every Predict route means the
+    feature is off on this deployment; `503 predict_chain_unconfigured` that chain mode lacks its oracle / house env.
 servers:
   - url: https://onrank.lol
 paths:
@@ -115,8 +126,358 @@ paths:
         - { name: fromBlock, in: query, required: true, schema: { type: integer } }
         - { name: toBlock, in: query, required: true, schema: { type: integer } }
       responses: { "200": { description: "{ events: Swap[] }" }, "400": { $ref: "#/components/responses/Error" } }
+
+  # ---- Predict: public, keyless -------------------------------------------------------------------------------------
+  /api/predict/markets:
+    get:
+      summary: Markets — live first, then resolved in the last 7 days (viewer positions when a bearer is sent)
+      description: No rate limiter of its own (CDN cache); filters are closed enums (400 on an unknown value).
+      parameters:
+        - { name: asset, in: query, schema: { $ref: "#/components/schemas/PredictAsset" } }
+        - { name: cadence, in: query, schema: { type: string, enum: [5m, 15m, 1h, 4h, 24h, 1w, 1mo, 1y] } }
+        - { name: kind, in: query, schema: { type: string, enum: [updown, hit] } }
+      responses:
+        "200":
+          description: anonymous → `public, s-maxage=2, stale-while-revalidate=5`; with a bearer → `no-store`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [sandbox, chain] }
+                  feeBps: { type: integer }
+                  minBet: { type: string }
+                  maxBet: { type: string, description: "\"0\" = no cap" }
+                  markets: { type: array, items: { $ref: "#/components/schemas/PredictMarket" } }
+        "400": { description: "`bad_asset` · `bad_cadence` · `bad_kind`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { $ref: "#/components/responses/PredictOff" }
+  /api/predict/markets/{id}:
+    get:
+      summary: One market (+ `audit` conservation figures once resolved)
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      responses:
+        "200":
+          description: same cache policy as the list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [sandbox, chain] }
+                  feeBps: { type: integer }
+                  minBet: { type: string }
+                  maxBet: { type: string }
+                  market: { $ref: "#/components/schemas/PredictMarket" }
+                  audit:
+                    type: [object, "null"]
+                    description: resolved markets only — `pot == paid + owed + fee` (+ `partnerFees` paid on arrival)
+                    properties: { pot: { type: string }, fee: { type: string }, owed: { type: string }, paid: { type: string }, partnerFees: { type: string } }
+        "400": { description: "`bad_market`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`market_not_found` · `not_found` (Predict off)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+  /api/predict/markets/{id}/activity:
+    get:
+      summary: Last 10 bets with the people behind them (public feed)
+      description: 900 requests / minute / IP; anonymous cache policy.
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activity:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        side: { type: string, enum: [yes, no] }
+                        stake: { type: string, description: net stake pooled (nanoGRAM) }
+                        ts: { type: integer }
+                        who: { type: [object, "null"], properties: { id: { type: integer }, name: { type: [string, "null"] }, handle: { type: [string, "null"] }, photo: { type: [string, "null"] } } }
+                        via: { type: [string, "null"], description: "partner name, or its payout wallet when unregistered" }
+        "400": { description: "`bad_market`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { $ref: "#/components/responses/PredictOff" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/markets/{id}/position:
+    get:
+      summary: "A wallet's position on a market (chain mode; `position: null` in sandbox)"
+      description: 900 requests / minute / IP; always `no-store`.
+      parameters:
+        - { $ref: "#/components/parameters/marketId" }
+        - { name: wallet, in: query, required: true, schema: { type: string }, description: any TON address form }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [sandbox, chain] }
+                  position: { oneOf: [{ $ref: "#/components/schemas/PredictMine" }, { type: "null" }] }
+                  outcome: { type: [string, "null"], enum: [yes, no, void, null] }
+                  claimWindowEndsAt: { type: integer, description: unix seconds; SweepHouse may return the remainder afterwards }
+        "400": { description: "`bad_market` · `bad_wallet`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`unknown_market` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/markets/{id}/claim-for:
+    post:
+      summary: Unsigned TON Connect `Claim` for `wallet`'s winnings on a resolved market (widget, no key, no account)
+      description: |
+        Reads only public data (the market row and the wallet's mirrored position) and derives the BetPosition address
+        with `get_position_address`; the message is sent by the wallet's owner from their own wallet app. 60 requests /
+        minute / IP, `no-store`. Chain mode only.
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [wallet], properties: { wallet: { type: string } } } } } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { const: true }
+                  mode: { const: chain }
+                  payout: { type: string, description: nanoGRAM owed to the wallet }
+                  message: { $ref: "#/components/schemas/TonMessage" }
+        "400": { description: "`bad_market` · `bad_wallet` · `bad_json` · `invalid_body` · `sandbox_no_claim_for` · `not_resolved` · `already_claimed`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`unknown_market` · `no_position` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "413": { description: "`payload_too_large` (body > 64 KiB)" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/price/{asset}:
+    get:
+      summary: Price series a market is decided on (8 decimals; USD for coins, GRAM for a gift floor) + latest point
+      description: 900 requests / minute / IP; anonymous cache policy. `since` reaches back 8 days at most (default 1 h); past 26 h the series (and `twap`) is bucket-averaged to at most 600 points (bucket = span / 600, stamped at the bucket start) while `now` stays the exact latest tick.
+      parameters:
+        - { name: asset, in: path, required: true, schema: { $ref: "#/components/schemas/PredictAsset" } }
+        - { name: since, in: query, schema: { type: integer }, description: unix seconds (9–12 digits) }
+        - { name: twap, in: query, schema: { type: string, enum: ["1"] }, description: "adds the rolling average the asset's targets are decided on (TON 5 min, floors 24 h)" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asset: { $ref: "#/components/schemas/PredictAsset" }
+                  scale: { const: 8 }
+                  now: { type: [object, "null"], properties: { ts: { type: integer }, price: { type: string }, twap: { type: string } } }
+                  series: { type: array, items: { type: array, prefixItems: [{ type: integer }, { type: string }] } }
+                  twapSec: { type: integer, description: only with `twap=1` }
+                  twap: { type: array, description: only with `twap=1`, items: { type: array, prefixItems: [{ type: integer }, { type: string }] } }
+        "400": { description: "`bad_asset`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { $ref: "#/components/responses/PredictOff" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/proof/{attestation}:
+    get:
+      summary: Public price proof behind an attestation hashed on chain — proof, canonical JSON, recomputed sha256
+      description: 900 requests / minute / IP; immutable → `public, s-maxage=3600, stale-while-revalidate=86400`.
+      parameters: [{ name: attestation, in: path, required: true, schema: { type: string, pattern: "^(0x)?[0-9a-fA-F]{1,64}$" } }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attestation: { type: string, description: "64 hex, zero-padded" }
+                  kind: { type: string, enum: [open, close, touch] }
+                  marketId: { type: string }
+                  publishedAt: { type: string, format: date-time }
+                  proof: { type: object, description: PriceProof v1 / v2 (see /developers/verify) }
+                  canonical: { type: string, description: the exact bytes hashed }
+                  recomputed: { type: string }
+                  matches: { type: boolean }
+        "400": { description: "`bad_attestation`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`proof_not_found` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/partners/{via}:
+    get:
+      summary: Public card behind a `via` — registry code → name + payout wallet; bare TON address → self-service partner
+      description: 900 requests / minute / IP; anonymous cache policy. Unknown / disabled code → 404 (the widget bets natively).
+      parameters: [{ $ref: "#/components/parameters/via" }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug: { type: [string, "null"], description: null for a self-service wallet }
+                  name: { type: string }
+                  wallet: { type: string, description: raw form `0:<64 hex>` }
+                  selfService: { type: boolean }
+        "400": { description: "`partner_not_allowed` (the house or the oracle wallet)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`partner_not_found` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/predict/partners/{via}/stats:
+    get:
+      summary: Public figures of an integration — bets, net stake brought, cuts earned
+      parameters: [{ $ref: "#/components/parameters/via" }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug: { type: [string, "null"] }
+                  name: { type: string }
+                  wallet: { type: string }
+                  selfService: { type: boolean }
+                  since: { type: [string, "null"], format: date-time, description: registry partners only }
+                  bets: { type: integer }
+                  stake: { type: string }
+                  fees: { type: string }
+                  partnerBps: { type: integer, const: 300 }
+                  mode: { type: string, enum: [sandbox, chain] }
+        "400": { description: "`partner_not_allowed`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "404": { description: "`partner_not_found` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  # ---- Partner API: x-api-key ---------------------------------------------------------------------------------------
+  /api/partner/v1/markets:
+    get:
+      summary: The markets (same shape as the public list, no viewer data)
+      security: [{ partnerKey: [] }]
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [updown, hit] } }
+        - { name: asset, in: query, schema: { $ref: "#/components/schemas/PredictAsset" } }
+        - { name: live, in: query, schema: { type: string, enum: ["1"] }, description: drop resolved markets }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [sandbox, chain] }
+                  feeBps: { type: integer }
+                  partnerBps: { type: integer, const: 300 }
+                  minBet: { type: string }
+                  maxBet: { type: string }
+                  partner: { type: string, description: your slug }
+                  markets: { type: array, items: { $ref: "#/components/schemas/PredictMarket" } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { $ref: "#/components/responses/PredictOff" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    options: { summary: "CORS preflight — 204 + CORS headers for an origin declared by some enabled partner (or `*`), 403 without headers otherwise (server keys with no origin open no preflight), 204 with no Origin", responses: { "204": { description: allowed }, "403": { description: origin unknown to every enabled partner } } }
+  /api/partner/v1/markets/{id}:
+    get:
+      summary: One market (+ contract `address` in chain mode) and its last 20 bets
+      security: [{ partnerKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [sandbox, chain] }
+                  feeBps: { type: integer }
+                  market: { $ref: "#/components/schemas/PredictMarket" }
+                  activity: { type: array, items: { type: object, properties: { side: { type: string, enum: [yes, no] }, stake: { type: string }, ts: { type: integer }, viaPartner: { type: boolean } } } }
+        "400": { description: "`bad_market`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { description: "`market_not_found` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/partner/v1/markets/{id}/bet:
+    post:
+      summary: Unsigned TON Connect `PlaceBet` carrying your payout wallet (the contract pays you 3% of the gross on arrival)
+      description: Chain mode only. `stake` is the gross stake in nanoGRAM; the net (97%) must be ≥ `minBet`. `validUntil` = now + 300 s.
+      security: [{ partnerKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [side, stake], properties: { side: { type: string, enum: [yes, no] }, stake: { type: string, pattern: "^\\d{1,30}$" } } } } } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { $ref: "#/components/schemas/TonMessage" }
+                  gross: { type: string }
+                  net: { type: string }
+                  partnerFee: { type: string }
+                  validUntil: { type: integer }
+        "400": { description: "`bad_market` · `bad_body` (invalid JSON / schema) · `below_min` (net stake under `minBet`). Stake caps, pool cap and the close time are enforced by the contract: a late or oversized bet bounces, the wallet is refunded minus gas.", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { description: "`unknown_market` (a price target not configured on this deployment) · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "413": { description: "`payload_too_large` (body > 64 KiB)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { description: "`sandbox_mode` · `predict_chain_unconfigured`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+  /api/partner/v1/markets/{id}/claim:
+    post:
+      summary: Unsigned TON Connect `Claim` for `wallet`'s position on a resolved market
+      security: [{ partnerKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/marketId" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [wallet], properties: { wallet: { type: string } } } } } }
+      responses:
+        "200": { content: { application/json: { schema: { type: object, properties: { message: { $ref: "#/components/schemas/TonMessage" } } } } } }
+        "400": { description: "`bad_market` · `bad_body` · `bad_wallet` · `not_resolved`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { description: "`market_not_found` · `not_found`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "413": { description: "`payload_too_large` (body > 64 KiB)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { description: "`sandbox_mode` · `rpc_busy` · `rpc_unavailable` (the chain read failed; retry)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "504": { description: "`rpc_timeout` (no answer from the chain within 8 s; retry)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+  /api/partner/v1/positions/{wallet}:
+    get:
+      summary: A wallet's positions across markets with what each is owed (chain mode)
+      security: [{ partnerKey: [] }]
+      parameters: [{ name: wallet, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallet: { type: string, description: raw form }
+                  positions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        marketId: { type: string }
+                        yes: { type: string }
+                        no: { type: string }
+                        claimed: { type: boolean }
+                        outcome: { type: [string, "null"], enum: [yes, no, void, null] }
+                        payout: { type: [string, "null"] }
+                        resolvesAt: { type: [integer, "null"] }
+                        resolvedAt: { type: [integer, "null"] }
+        "400": { description: "`bad_wallet`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { $ref: "#/components/responses/PredictOff" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { description: "`sandbox_mode`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+  /api/partner/v1/price/{asset}:
+    get:
+      summary: Price series (same as the public route, without `twap`)
+      security: [{ partnerKey: [] }]
+      parameters:
+        - { name: asset, in: path, required: true, schema: { $ref: "#/components/schemas/PredictAsset" } }
+        - { name: since, in: query, schema: { type: integer } }
+      responses:
+        "200": { content: { application/json: { schema: { type: object, properties: { asset: { type: string }, scale: { const: 8 }, now: { type: [object, "null"], properties: { ts: { type: integer }, price: { type: string } } }, series: { type: array, items: { type: array, prefixItems: [{ type: integer }, { type: string }] } } } } } } }
+        "400": { description: "`bad_asset`", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+        "401": { $ref: "#/components/responses/PartnerAuth" }
+        "403": { $ref: "#/components/responses/PartnerOrigin" }
+        "404": { $ref: "#/components/responses/PredictOff" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 components:
+  securitySchemes:
+    partnerKey: { type: apiKey, in: header, name: x-api-key, description: "`onrk_` + 32 hex, issued once by ONRANK; only its sha256 is stored. Rotation invalidates the previous key immediately." }
   parameters:
+    marketId: { name: id, in: path, required: true, schema: { type: string }, description: "`<asset>-<cadence>-<openAt>` or `<asset>-hit-<threshold×1e8>-<deadline>` (400 `bad_market` otherwise)" }
+    via: { name: via, in: path, required: true, schema: { type: string }, description: registry code (3–32 chars a-z 0-9 -) or a TON address (friendly or raw) }
     seq: { name: seq, in: path, required: true, schema: { type: string, pattern: "^\\d{1,18}$" } }
     side: { name: side, in: query, required: true, schema: { type: string, enum: [buy, sell] } }
     amount:
@@ -133,7 +494,56 @@ components:
           schema:
             type: object
             properties: { error: { type: string }, message: { type: string } }
+    PredictOff: { description: "`not_found` — Predict is not enabled on this deployment", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+    RateLimited: { description: "`rate_limited` (+ `retry-after: 10`)", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+    PartnerAuth: { description: "`bad_api_key` — header missing / malformed / unknown / rotated, or the partner is disabled", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
+    PartnerOrigin: { description: "`origin_not_allowed` — the browser Origin is not one of the partner's declared origins. A request without an Origin header (server-to-server) is always accepted: the key alone authenticates it. A partner with no declared origin is a server key: every browser Origin is refused; `*` declares any origin explicitly.", content: { application/json: { schema: { $ref: "#/components/schemas/PredictError" } } } }
   schemas:
+    PredictError:
+      type: object
+      required: [error]
+      properties: { error: { type: string, description: stable machine code }, message: { type: string, description: only on `invalid_body` (zod issues) and `predict_chain_unconfigured` } }
+    PredictAsset: { type: string, enum: [btc, eth, sol, gram, scaredcat, plushpepe], description: "`gram` is TON/USD (displayed as TON); `scaredcat` / `plushpepe` are Telegram gift floors priced in GRAM (TON)" }
+    TonMessage:
+      type: object
+      description: one entry of TON Connect `sendTransaction.messages`
+      properties: { address: { type: string }, amount: { type: string, description: nanoTON (stake + gas) }, payload: { type: string, description: base64 BoC } }
+    PredictMine:
+      type: object
+      description: the viewer's / wallet's position on a market
+      properties: { yes: { type: string }, no: { type: string }, claimed: { type: boolean }, payout: { type: string, description: "exact once resolved, estimate before" } }
+    PredictMarket:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [updown, hit] }
+        asset: { $ref: "#/components/schemas/PredictAsset" }
+        assetLabel: { type: string }
+        cadence: { type: [string, "null"], description: null for a price target }
+        threshold: { type: [string, "null"], description: "target × 1e8 for `hit`" }
+        question: { type: string }
+        openAt: { type: integer }
+        closesAt: { type: integer }
+        resolvesAt: { type: integer }
+        resolvedAt: { type: [integer, "null"] }
+        phase: { type: string, enum: [betting, locked, resolvable, resolved] }
+        poolYes: { type: string }
+        poolNo: { type: string }
+        openPrice: { type: string }
+        price: { type: string, description: latest oracle tick × 1e8 }
+        basis: { type: [object, "null"], description: "TWAP-decided targets (TON 5 min, floors 24 h): the current average and its window", properties: { twapSec: { type: integer }, price: { type: string }, coverage: { type: number } } }
+        closePrice: { type: [string, "null"] }
+        outcome: { type: [string, "null"], enum: [yes, no, void, null] }
+        feeBps: { type: integer }
+        fee: { type: string }
+        partnerStake: { type: string }
+        partnerFees: { type: string }
+        claimWindowSec: { type: integer, description: "seconds after `resolvesAt` during which winners can claim (7 d / 30 d / 90 d by tier)" }
+        openAttestation: { type: [string, "null"], description: "64 hex → `/api/predict/proof/{attestation}`; null in sandbox / before open" }
+        closeAttestation: { type: [string, "null"], description: "null in sandbox, before resolve, or on a void without a price" }
+        address: { type: string, description: Market contract (chain mode) }
+        sandbox: { type: boolean }
+        mine: { oneOf: [{ $ref: "#/components/schemas/PredictMine" }, { type: "null" }], description: public list with a bearer only; absent from partner answers }
     Coin:
       type: object
       properties:

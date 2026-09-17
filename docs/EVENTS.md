@@ -4,7 +4,7 @@ Every ONRANK contract reports what it did with an **external out-message** ("log
 top byte is 0 and whose low 248 bits are the topic below; body = the fields in order (TL-B, no opcode). Decode only
 events emitted by accounts whose code hash is listed in [README.md § 2](./README.md#2-contracts-mainnet).
 
-Reference decoder: `decodeTradeEvent` in `@onrank/sdk` (trading events) — the app's full decoder covers every topic below. Topics are grouped by contract family.
+Reference decoder: `decodeTradeEvent` in `@onrank/sdk` (trading events) — the app's full decoder covers every topic below. Topics are grouped by contract family. Prediction markets (`Market` / `BetPosition`) are in their own section further down.
 
 ## Launcher (Factory, Curve, Pool, FeeSplitter, RewardMaster/Vault)
 
@@ -47,6 +47,31 @@ Semantics that matter for a trading integration:
 | `0x5054e009` | Pot | DeskSwept | `serial:uint32 slot:uint8 owed:coins newStamp:uint128` |
 | `0x5054e00a` | Pot | DeskWithdrawn | `serial:uint32 slot:uint8 amount:coins to:addr` |
 | `0x4443e001` | DeskCollection | DeskDeployed | `serial:uint32 owner:addr item:addr isNew:bit` |
+
+## Predict (Market, BetPosition — parimutuel prediction markets)
+
+One `Market` per question (address derived from its `MarketConfig`: oracle, house, asset, cadence, window, fee, kind,
+threshold, partner bps, claim window, limits), one `BetPosition` per (market, bettor). Prices are `uint128 × 1e8` (USD
+for coins, GRAM for a gift floor); `attestation` is the sha256 of the published price proof
+(`GET /api/predict/proof/<hex>` returns it, re-hash it yourself). The order matters: a `HousePaid` always follows the
+`MarketResolved` of the same transaction; `Claimed` is emitted by the **BetPosition** when the market has paid it.
+
+| Topic | Emitter | Name | Body |
+|---|---|---|---|
+| `0x5044e001` | Market | BetPlaced | `owner:addr isYes:bit amount:coins poolYes:coins poolNo:coins partner:(Maybe ^[partner:addr fee:coins])` — `amount` is the **net** stake pooled (gross minus the partner cut); `partner` null = native bet |
+| `0x5044e002` | Market | MarketOpened | `openPrice:uint128 publishTime:uint32 attestation:uint256` |
+| `0x5044e003` | Market | MarketResolved | `outcome:uint8 openPrice:uint128 closePrice:uint128 poolYes:coins poolNo:coins fee:coins publishTime:uint32 attestation:uint256` — outcome 1 YES, 2 NO, 3 VOID (`fee = 0`, `attestation = 0` on a void without a price) |
+| `0x5044e004` | Market | HousePaid | `amount:coins to:addr` |
+| `0x5044e005` | BetPosition | Claimed | `owner:addr payout:coins` |
+
+Semantics: `poolYes + poolNo` after resolution is the pot; winners share `pot − fee` pro-rata to their net stake; a
+one-sided or void market refunds every net stake and `fee = 0` (the partner cut paid at `BetPlaced` is never refunded).
+Opcodes of the messages the wallet signs: `PlaceBet 0x50440001` (`queryId:uint64 isYes:bit partner:(Maybe addr)`, value =
+gross stake + 0.025 TON, + 0.005 with a partner; the BetPosition keeps 0.01 TON and refunds the rest of the gas to the bettor as `0xd53276db`)
+and `Claim 0x50440012` (`queryId:uint64`, value ≥ 0.03 TON — the app attaches 0.05, the excess is refunded — sent to the
+BetPosition — `get_position_address(owner)` on the market). Oracle-only: `LockOpen 0x50440002`, `Resolve 0x50440003`,
+`ForceVoid 0x50440004` (anyone, one hour after the resolve time without a resolution), `SweepHouse 0x50440006` (after the
+claim window).
 
 ## Reading them
 
