@@ -110,17 +110,6 @@ display-name = "FactoryV2"
 src = "contracts/launcher-v2/FactoryV2.tolk"
 depends = []
 
-# --- Predict (parimutuel prediction markets) ---
-[contracts.BetPosition]
-display-name = "BetPosition"
-src = "contracts/predict/BetPosition.tolk"
-depends = []
-
-[contracts.Market]
-display-name = "Market"
-src = "contracts/predict/Market.tolk"
-depends = ["BetPosition"]
-
 # --- Test only: DeDust look-alike for testnet rehearsals (never deployed on mainnet) ---
 [contracts.MockDex]
 display-name = "MockDex"

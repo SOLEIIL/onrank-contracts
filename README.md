@@ -19,12 +19,11 @@ indexers) and users can read the code that runs on mainnet and check it against 
 | `contracts/launcher/` | the first launcher (v1) — its coins are sell-only — and `BuybackVault` |
 | `contracts/pot/` | `Pot` (the Vault that buys tokenized stocks and keeps the per-Rank counters) and `PotRelay` |
 | `contracts/desk/` | `DeskMinter`, `DeskCollection`, `DeskItem` — the Rank NFTs (TEP-62) |
-| `contracts/predict/` | `Market` (one parimutuel market per question: Up/Down window or price target) and `BetPosition` (one per bettor and market) — ONRANK Predict v1.1 |
 | `contracts/common/`, `contracts/vendor/jetton/` | shared errors, messages, TEP-74 / TEP-62 message layouts |
 | `tests/`, `wrappers/` | Acton test suites and generated wrappers |
 | `build/` | compiled code (`code_boc64`) and code hash of every contract — the snapshot the deployed accounts are checked against |
 | `scripts/check-code-hashes.mjs` | compares the code hash of every mainnet account with `build/` (read-only) |
-| `docs/` | integration guide, event layouts, verification notes, OpenAPI of the public API, the Predict audit package (`16-predict-audit-package.md`) |
+| `docs/` | integration guide, event layouts, verification notes, OpenAPI of the public API |
 
 ## Deployed contracts (mainnet)
 
@@ -41,14 +40,8 @@ Per-coin contracts (master, curve, pool, splitter, vault) are created by the Fac
 event or through `GET https://onrank.lol/api/v1/coins`. Code hashes of every family are listed in
 [`docs/README.md`](./docs/README.md#2-contracts-mainnet).
 
-**Predict** contracts are deployed on demand, not once: the oracle keeper deploys one `Market` per question and each
-bettor's first bet deploys their `BetPosition`. Their code is fixed (v1.1) — a market whose code hash differs is not an
-ONRANK market. Addresses: `GET https://onrank.lol/api/predict/markets/{id}` (`address`) or the partner API.
-
 | Contract | Code hash (v1.1) |
 |---|---|
-| Market | `2aead32d0ef3afbd7ebe4c3c4859767dbf58add41bbefb42bbb1cd7159b531a7` |
-| BetPosition | `8dad64bd903f69b972bb9d3b983f4c5af9bf54b7d13b624027aba07d3afd5d66` |
 
 ## Check the deployed code yourself
 

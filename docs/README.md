@@ -15,9 +15,6 @@ server: you build a message, the user signs it in their wallet.
 - REST API: [openapi.yaml](./openapi.yaml) — `GET /api/v1/coins`, `/coins/{seq}`, `/coins/{seq}/quote`, `/coins/{seq}/tx`,
   `/trades`, plus a [DexScreener adapter](#dexscreener-adapter).
 - Events: [EVENTS.md](./EVENTS.md) — how to detect trades and graduations from the chain.
-- Prediction markets (parimutuel, GRAM): public reads under `/api/predict/*`, the partner API under `/api/partner/v1/*`
-  (`x-api-key`) and the embeddable widget — all in [openapi.yaml](./openapi.yaml) and the `@onrank/predict-sdk` README
-  ([onrank.lol/docs#predict-embed](https://onrank.lol/docs#predict-embed)); events and message opcodes in [EVENTS.md](./EVENTS.md).
 - Contact: [@soleil](https://t.me/soleil) · app: [t.me/OnRankBot](https://t.me/OnRankBot) · [onrank.lol/docs](https://onrank.lol/docs)
 
 **Vocabulary.** Amounts are in GRAM (the TON coin, rebranded; on chain the unit is still nanoTON = 1e-9 GRAM). A
@@ -107,8 +104,6 @@ sold and claimed but not bought; do not route buys to them. The current $RANK is
 | DeskMinter (Rank minter) | `EQBAUS2t-elNMrkdZtv7Tl1pMZhTJrZqdogyCK-2UxmjjPzu` | `QdIxvaBs/3OE7xHOPy4bPP5SzHtMBriVW+TywiLifxA=` |
 | DeskCollection (Rank NFTs) | `EQBKCClSs3RhzCXqQrLf8uyUPUBuCmU4P4YGY51tJyNMYgMe` | `LHhgnY0QJjXpBWNkpYjjCJK1elxludK0gBHdLq4IYeU=` |
 | BuybackVault | `EQBtLFO9DvXI6WV0uraqVWu6qH8o7gQbk6Awfxg7Kj8Z_phO` | `WXP9MVAA2AT/dITksu2ewZGJo9hdBlV7LAeG/s6C9Xo=` |
-| Predict Market (one per question, deployed by the oracle keeper) | `address` in `GET /api/predict/markets/{id}` | `KurTLQ7zr71+vkw8SFl2fb9YrdQbvvtCu7HNcVm1Mac=` |
-| Predict BetPosition (one per bettor and market) | `get_position_address(owner)` on the market | `ja1kvZA/ablyu507mD9MWvm/VLfRO2JAJ6ugfTr9XWY=` |
 
 [VERIFY.md](./VERIFY.md) explains how to re-check every deployed hash yourself.
 **Never take a curve or pool address from user input**: resolve it from the Factory's `LaunchCreated` event, from the
