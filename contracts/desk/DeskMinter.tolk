@@ -6,8 +6,8 @@ import "../pot/pot-messages"
 
 contract DeskMinter {
     author: "GRAMDESKS"
-    version: "0.1.0"
-    description: "Public mint: burns a fixed $DESK deposit, splits the TON surcharge between Pot and protocol, and asks the Collection to deploy the desk."
+    version: "0.2.0"
+    description: "Public mint: burns a fixed $DESK deposit, charges a TON surcharge that doubles every `stepEvery` mints, splits it between Pot and protocol, and asks the Collection to deploy the desk."
     storage: DeskMinterStorage
     incomingMessages: AllowedMessageToMinter
 }
@@ -24,6 +24,29 @@ type AllowedMessageToMinter =
 
 const DEPLOY_MSG_VALUE = DESK_DEPLOY_VALUE + REGISTER_DESK_VALUE + ton("0.03")
 const POT_TOPUP_SOURCE_MINT = 1
+/// The price can double at most this many times: 2^40 × any sane base stays far below the coins limit (2^120).
+const MAX_PRICE_DOUBLINGS = 40
+
+/// The TON surcharge of mint number `minted` (0-based): the base doubles once per completed step of `stepEvery`
+/// mints. `stepEvery` = 0 keeps the base forever. Pure, no storage.
+fun effectiveSurcharge(base: coins, minted: int, stepEvery: int): coins {
+    if (stepEvery == 0) {
+        return base;
+    }
+    var doublings = minted / stepEvery;
+    if (doublings > MAX_PRICE_DOUBLINGS) {
+        doublings = MAX_PRICE_DOUBLINGS;
+    }
+    return base << doublings;
+}
+
+/// Mints left at the current price before it doubles; 0 when the price is flat.
+fun mintsToNextStep(minted: int, stepEvery: int): int {
+    if (stepEvery == 0) {
+        return 0;
+    }
+    return stepEvery - (minted % stepEvery);
+}
 
 fun keepOwnBalance(incomingValue: coins) {
     val keep = max(contract.getOriginalBalance() - incomingValue, MIN_STORAGE_RESERVE);
@@ -84,10 +107,12 @@ fun onInternalMessage(in: InMessage) {
                 return;
             }
             val initiator: address = msg.transferInitiator;
+            // the price of this very mint: fixed by how many were minted before it, never by what the sender attached
+            val price = effectiveSurcharge(config.surcharge, storage.minted, config.stepEvery);
             val valid = !storage.paused
                 && storage.minted < storage.cap
                 && msg.jettonAmount == config.depositAmount
-                && in.valueCoins >= config.surcharge + MINT_GAS
+                && in.valueCoins >= price + MINT_GAS
                 && initiator.getWorkchain() == BASECHAIN;
 
             if (!valid) {
@@ -104,8 +129,8 @@ fun onInternalMessage(in: InMessage) {
 
             sendDeploy(storage.collection, serial, initiator, msg.queryId, DEPLOY_MSG_VALUE, SEND_MODE_PAY_FEES_SEPARATELY);
 
-            val protocolShare = (config.surcharge * config.protocolShareBps) / 10000;
-            val potShare = config.surcharge - protocolShare;
+            val protocolShare = (price * config.protocolShareBps) / 10000;
+            val potShare = price - protocolShare;
             if (potShare > 0) {
                 val toPot = createMessage({
                     bounce: BounceMode.NoBounce,
@@ -201,6 +226,7 @@ fun onBouncedMessage(in: InMessageBounced) {
 
 get fun get_minter_data(): DeskMinterDataReply {
     val storage = lazy DeskMinterStorage.load();
+    val config = storage.config.load();
     return {
         admin: storage.admin,
         collection: storage.collection,
@@ -209,7 +235,16 @@ get fun get_minter_data(): DeskMinterDataReply {
         cap: storage.cap,
         paused: storage.paused,
         unburned: storage.unburned,
-        config: storage.config.load(),
+        config,
         pendingDeploys: storage.pendingDeploys,
+        effectiveSurcharge: effectiveSurcharge(config.surcharge, storage.minted, config.stepEvery),
+        toNextStep: mintsToNextStep(storage.minted, config.stepEvery),
     };
+}
+
+/// What the next mint costs in TON (surcharge only, gas excluded) and how many mints are left at that price.
+get fun get_mint_price(): (coins, int) {
+    val storage = lazy DeskMinterStorage.load();
+    val config = storage.config.load();
+    return (effectiveSurcharge(config.surcharge, storage.minted, config.stepEvery), mintsToNextStep(storage.minted, config.stepEvery));
 }

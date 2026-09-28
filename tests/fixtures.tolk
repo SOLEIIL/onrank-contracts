@@ -111,7 +111,8 @@ fun floorStockFor(spendUsdt: coins): coins {
 /// which sporadically yields `now < last_paid` ("cannot create storage phase").
 const WORLD_T0: uint32 = 1800000000
 
-fun setupWorld(cap: uint32 = 5000): World {
+/// startSerial: the collection already minted that many desks (a takeover test starts the world mid-life).
+fun setupWorld(cap: uint32 = 5000, startSerial: uint32 = 0): World {
     testing.setNow(WORLD_T0);
     val admin = testing.treasury("admin");
     val keeper = testing.treasury("keeper");
@@ -145,7 +146,7 @@ fun setupWorld(cap: uint32 = 5000): World {
         admin: admin.address,
         minter: minterOp.address,
         pot: pot.address,
-        nextSerial: 0,
+        nextSerial: startSerial,
         cap,
         content: CollectionContent { collectionMetadata: createEmptyCell(), commonContent: "https://meta.test/desk/" }.toCell(),
         deskItemCode: build("DeskItem"),

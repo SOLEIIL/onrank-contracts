@@ -32,7 +32,7 @@ indexers) and users can read the code that runs on mainnet and check it against 
 | FactoryV2 | `EQB18IIqz56m9AAwNpX0Ai61_LNa4yquhT3QRNk4geiLwdhA` |
 | Pot (Vault) | `EQCpS9EiKrk0W7pCEybeKiCbzLL1b-CSTeiHHgVGKCQD5Mc1` |
 | PotRelay | `EQBv-rQifdeTG6AMWw9OEp9x9YLEBGs__tkWj5sy8ulgiOFT` |
-| DeskMinter | `EQBAUS2t-elNMrkdZtv7Tl1pMZhTJrZqdogyCK-2UxmjjPzu` |
+| DeskMinter | `EQBxJR0SBPpr7H35SfZD9b2AZHLfX2SJyUYNMWNpXq3vvAYU` |
 | DeskCollection | `EQBKCClSs3RhzCXqQrLf8uyUPUBuCmU4P4YGY51tJyNMYgMe` |
 | BuybackVault | `EQBtLFO9DvXI6WV0uraqVWu6qH8o7gQbk6Awfxg7Kj8Z_phO` |
 

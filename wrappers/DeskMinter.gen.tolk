@@ -198,3 +198,7 @@ fun DeskMinter.sendAny(self, from: address, body: cell, config: SendParams = {})
 fun DeskMinter.getMinterData(self): DeskMinterDataReply {
     return net.runGetMethod(self.address, "get_minter_data");
 }
+
+fun DeskMinter.getMintPrice(self): (coins, int) {
+    return net.runGetMethod(self.address, "get_mint_price");
+}

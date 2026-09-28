@@ -146,8 +146,12 @@ struct DeskMinterConfig {
     deskJettonWallet: address?
     protocolWallet: address
     depositAmount: coins
+    /// Base TON surcharge: the price of the first `stepEvery` mints. The effective price doubles every `stepEvery`
+    /// mints (see `effectiveSurcharge`); the deposit never changes.
     surcharge: coins
     protocolShareBps: uint16
+    /// Mints per price step (100: mints 0–99 pay `surcharge`, 100–199 twice that…). 0 = flat price forever.
+    stepEvery: uint32
 }
 
 struct DeskMinterStorage {
@@ -181,4 +185,8 @@ struct DeskMinterDataReply {
     unburned: coins
     config: DeskMinterConfig
     pendingDeploys: map<uint32, address>
+    /// TON the next mint must pay (base surcharge doubled once per completed step), excluding gas.
+    effectiveSurcharge: coins
+    /// Mints left at the current price before it doubles; 0 when the price is flat (`stepEvery` = 0).
+    toNextStep: int
 }

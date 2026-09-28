@@ -78,7 +78,7 @@ get fun `test opcodes: factory and minter bounce unknown opcodes`() {
         cap: 10,
         paused: false,
         unburned: 0,
-        config: DeskMinterConfig { deskJettonWallet: null, protocolWallet: w.admin.address, depositAmount: 1, surcharge: 0, protocolShareBps: 0 }.toCell(),
+        config: DeskMinterConfig { deskJettonWallet: null, protocolWallet: w.admin.address, depositAmount: 1, surcharge: 0, protocolShareBps: 0, stepEvery: 0 }.toCell(),
         pendingDeploys: createEmptyMap(),
     });
     expect(minter.deploy(w.admin.address, { value: ton("0.5"), bounce: false })).toHaveSuccessfulDeploy({ to: minter.address });

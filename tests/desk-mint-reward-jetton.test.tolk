@@ -52,11 +52,11 @@ fun setupRj(): RjWorld {
         cap: 100,
         paused: false,
         unburned: 0,
-        config: DeskMinterConfig { deskJettonWallet: null, protocolWallet: protocol.address, depositAmount: RJ_DEPOSIT, surcharge: RJ_SURCHARGE, protocolShareBps: 4000 }.toCell(),
+        config: DeskMinterConfig { deskJettonWallet: null, protocolWallet: protocol.address, depositAmount: RJ_DEPOSIT, surcharge: RJ_SURCHARGE, protocolShareBps: 4000, stepEvery: 0 }.toCell(),
         pendingDeploys: createEmptyMap(),
     });
     expect(minter.deploy(w.admin.address, { value: ton("1"), bounce: false })).toHaveSuccessfulDeploy({ to: minter.address });
-    val cfg: DeskMinterConfig = { deskJettonWallet: l.r.master.getWalletAddress(minter.address), protocolWallet: protocol.address, depositAmount: RJ_DEPOSIT, surcharge: RJ_SURCHARGE, protocolShareBps: 4000 };
+    val cfg: DeskMinterConfig = { deskJettonWallet: l.r.master.getWalletAddress(minter.address), protocolWallet: protocol.address, depositAmount: RJ_DEPOSIT, surcharge: RJ_SURCHARGE, protocolShareBps: 4000, stepEvery: 0 };
     expect(minter.sendSetDeskMinterConfig(w.admin.address, 0, cfg, { value: ton("0.05") })).toHaveSuccessfulTx<SetDeskMinterConfig>({ to: minter.address });
     expect(w.collection.sendSetCollectionMinter(w.admin.address, 0, minter.address, { value: ton("0.05") })).toHaveSuccessfulTx<SetCollectionMinter>({ to: w.collection.address });
     return { l, w, minter, protocol };

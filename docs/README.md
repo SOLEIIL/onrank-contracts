@@ -101,7 +101,7 @@ sold and claimed but not bought; do not route buys to them. The current $RANK is
 | RewardVaultV2 (one per coin) | from `LaunchCreated` | `vzEyUk5gEDQxHIfokjDqvgmuwFsOQnnKwpyBrIVRE/A=` |
 | Pot (the Vault) | `EQCpS9EiKrk0W7pCEybeKiCbzLL1b-CSTeiHHgVGKCQD5Mc1` | `lxv0tCBCh1oQk0f5oBU0KCTmebivPtMicSoSp5h4Phw=` |
 | PotRelay | `EQBv-rQifdeTG6AMWw9OEp9x9YLEBGs__tkWj5sy8ulgiOFT` | `h7MamCDtM7iPXwEquvm5JaSgCAHLgf3EkVq8Y7Zz2tY=` |
-| DeskMinter (Rank minter) | `EQBAUS2t-elNMrkdZtv7Tl1pMZhTJrZqdogyCK-2UxmjjPzu` | `QdIxvaBs/3OE7xHOPy4bPP5SzHtMBriVW+TywiLifxA=` |
+| DeskMinter (Rank minter, v2 since 2026-09-24) | `EQBxJR0SBPpr7H35SfZD9b2AZHLfX2SJyUYNMWNpXq3vvAYU` | `9eaThD65MUwYDWixklg8EXyLE2LSKjE0YSY+KhN8PXg=` |
 | DeskCollection (Rank NFTs) | `EQBKCClSs3RhzCXqQrLf8uyUPUBuCmU4P4YGY51tJyNMYgMe` | `LHhgnY0QJjXpBWNkpYjjCJK1elxludK0gBHdLq4IYeU=` |
 | BuybackVault | `EQBtLFO9DvXI6WV0uraqVWu6qH8o7gQbk6Awfxg7Kj8Z_phO` | `WXP9MVAA2AT/dITksu2ewZGJo9hdBlV7LAeG/s6C9Xo=` |
 
@@ -276,7 +276,9 @@ The live `/api/v1/coins/{seq}` `marketState.priceNano` remains the most recent o
 
 ## 7. Attribution and referrals
 
-Users reach the app through `https://t.me/OnRankBot?startapp=coin_<seq>-ref_<code>`; a `ref_<code>` earns the referrer
+Users reach the app through `https://t.me/OnRankBot?startapp=coin_<id>-ref_<code>` where `<id>` is the coin's jetton
+master address (`EQ…`) or its `seq`; the web page is `https://onrank.lol/coins/<address>` (the numeric form redirects
+there, and `/api/coins/by-address/<address>` gives the `seq`). A `ref_<code>` earns the referrer
 10% of the protocol's share of that user's fees (paid out by the team). **Trades sent directly on-chain by a bot carry
 no referral code** — attribution only exists inside the app. If you route users to the app for a coin page, use the
 deep link above.

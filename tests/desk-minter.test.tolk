@@ -32,8 +32,57 @@ struct MinterWorld {
     protocol: Treasury
 }
 
-fun minterConfig(mw: MinterWorld, wallet: address?): DeskMinterConfig {
-    return { deskJettonWallet: wallet, protocolWallet: mw.protocol.address, depositAmount: DEPOSIT, surcharge: SURCHARGE, protocolShareBps: PROTOCOL_BPS };
+fun minterConfig(mw: MinterWorld, wallet: address?, stepEvery: uint32 = 0): DeskMinterConfig {
+    return {
+        deskJettonWallet: wallet,
+        protocolWallet: mw.protocol.address,
+        depositAmount: DEPOSIT,
+        surcharge: SURCHARGE,
+        protocolShareBps: PROTOCOL_BPS,
+        stepEvery,
+    };
+}
+
+/// A minter that starts at `minted` (a v2 taking over from a v1 at that serial), with a price step every `stepEvery` mints.
+fun setupMinterAt(cap: uint32, minted: uint32, stepEvery: uint32): MinterWorld {
+    val w = setupWorld(cap, minted);
+    val protocol = testing.treasury("protocol");
+    val deskToken = deployJetton(w.issuer, "DESK");
+    var mw: MinterWorld = {
+        w,
+        deskToken,
+        minter: DeskMinter.fromAddress(w.admin.address),
+        protocol,
+    };
+    val minter = DeskMinter.fromStorage({
+        admin: w.admin.address,
+        collection: w.collection.address,
+        pot: w.pot.address,
+        minted,
+        cap,
+        paused: false,
+        unburned: 0,
+        config: minterConfig(mw, null, stepEvery).toCell(),
+        pendingDeploys: createEmptyMap(),
+    });
+    expect(
+        minter.deploy(w.admin.address, { value: ton("1"), bounce: false }),
+    ).toHaveSuccessfulDeploy({ to: minter.address });
+    mw.minter = minter;
+    expect(
+        minter.sendSetDeskMinterConfig(
+            w.admin.address,
+            0,
+            minterConfig(mw, deskToken.getWalletAddress(minter.address), stepEvery),
+            { value: ton("0.05") },
+        ),
+    ).toHaveSuccessfulTx<SetDeskMinterConfig>({ to: minter.address });
+    expect(
+        w
+            .collection
+            .sendSetCollectionMinter(w.admin.address, 0, minter.address, { value: ton("0.05") }),
+    ).toHaveSuccessfulTx<SetCollectionMinter>({ to: w.collection.address });
+    return mw;
 }
 
 fun setupMinter(cap: uint32 = 5000): MinterWorld {
@@ -243,4 +292,186 @@ get fun `test minter: admin operations are admin-only`() {
     expect(mw.minter.sendSetDeskMinterPaused(stranger.address, 0, true, { value: ton("0.05") }))
         .toHaveSuccessfulTx<SetDeskMinterPaused>({ to: mw.minter.address });
     expect(mw.minter.getMinterData().paused).toBeTrue();
+}
+
+// ---- price steps (v2: the surcharge doubles every `stepEvery` mints) --------------------------------------------------
+
+/// A bare minter in an existing world whose storage says `minted` desks exist: enough to read the price it quotes
+/// (the getter needs no jetton wallet). Each (minted, stepEvery) pair is a distinct storage, hence a distinct address.
+fun priceAt(mw: MinterWorld, minted: uint32, stepEvery: uint32): (coins, int) {
+    val probe = DeskMinter.fromStorage({
+        admin: mw.w.admin.address,
+        collection: mw.w.collection.address,
+        pot: mw.w.pot.address,
+        minted,
+        cap: 100000,
+        paused: false,
+        unburned: 0,
+        config: minterConfig(mw, null, stepEvery).toCell(),
+        pendingDeploys: createEmptyMap(),
+    });
+    expect(
+        probe.deploy(mw.w.admin.address, { value: ton("0.2"), bounce: false }),
+    ).toHaveSuccessfulDeploy({ to: probe.address });
+    return probe.getMintPrice();
+}
+
+get fun `test minter: price doubles at every step boundary and get_minter_data says how many mints are left`() {
+    val mw = setupMinter();
+    // 0..99 → base, 100..199 → ×2, 200.. → ×4
+    var (p, left) = priceAt(mw, 0, 100);
+    expect(p).toEqual(SURCHARGE);
+    expect(left).toEqual(100);
+    (p, left) = priceAt(mw, 99, 100);
+    expect(p).toEqual(SURCHARGE);
+    expect(left).toEqual(1);
+    (p, left) = priceAt(mw, 100, 100);
+    expect(p).toEqual(SURCHARGE * 2);
+    expect(left).toEqual(100);
+    (p, left) = priceAt(mw, 199, 100);
+    expect(p).toEqual(SURCHARGE * 2);
+    expect(left).toEqual(1);
+    (p, left) = priceAt(mw, 200, 100);
+    expect(p).toEqual(SURCHARGE * 4);
+    expect(left).toEqual(100);
+    (p, left) = priceAt(mw, 74, 100);
+    expect(p).toEqual(SURCHARGE);
+    expect(left).toEqual(26);
+
+    // the same figures through get_minter_data
+    val probe = DeskMinter.fromStorage({
+        admin: mw.w.admin.address,
+        collection: mw.w.collection.address,
+        pot: mw.w.pot.address,
+        minted: 150,
+        cap: 100000,
+        paused: false,
+        unburned: 0,
+        config: minterConfig(mw, null, 100).toCell(),
+        pendingDeploys: createEmptyMap(),
+    });
+    expect(
+        probe.deploy(mw.w.admin.address, { value: ton("0.2"), bounce: false }),
+    ).toHaveSuccessfulDeploy({ to: probe.address });
+    val md = probe.getMinterData();
+    expect(md.effectiveSurcharge).toEqual(SURCHARGE * 2);
+    expect(md.toNextStep).toEqual(50);
+    expect(md.config.stepEvery).toEqual(100);
+}
+
+get fun `test minter: stepEvery 0 keeps the price flat forever (v1 behaviour)`() {
+    val mw = setupMinter();
+    var (p, left) = priceAt(mw, 0, 0);
+    expect(p).toEqual(SURCHARGE);
+    expect(left).toEqual(0);
+    (p, left) = priceAt(mw, 4999, 0);
+    expect(p).toEqual(SURCHARGE);
+    expect(left).toEqual(0);
+    // and the plain v1-style minter of this world quotes its base too
+    val md = mw.minter.getMinterData();
+    expect(md.effectiveSurcharge).toEqual(SURCHARGE);
+    expect(md.toNextStep).toEqual(0);
+}
+
+get fun `test minter: the number of doublings is capped, no overflow at absurd counts`() {
+    val mw = setupMinter();
+    // 90000 mints with a step of 1 would be 2^90000: capped at 2^40
+    val (p, _) = priceAt(mw, 90000, 1);
+    expect(p).toEqual(SURCHARGE << 40);
+    val (q, _) = priceAt(mw, 60000, 1);
+    expect(q).toEqual(SURCHARGE << 40);
+}
+
+get fun `test minter: a takeover at serial 74 mints serial 74 at the base price, the collection accepts it`() {
+    val mw = setupMinterAt(500, 74, 100);
+    val w = mw.w;
+    val user = testing.treasury("user");
+    giveDesk(mw, user.address, DEPOSIT);
+    expect(w.collection.getCollectionData().nextItemIndex).toEqual(74);
+    val res = payMint(mw, user.address, DEPOSIT);
+    expect(res).toHaveSuccessfulTx<DeployDesk>({ from: mw.minter.address, to: w
+            .collection
+            .address });
+    expect(res).toHaveSuccessfulTx<DeployDeskOk>({ from: w.collection.address, to: mw
+            .minter
+            .address });
+    expect(DeskItem.fromAddress(w.collection.getNftAddressByIndex(74)).getDeskData().owner).toEqual(
+        user.address,
+    );
+    expect(w.collection.getCollectionData().nextItemIndex).toEqual(75);
+    val md = mw.minter.getMinterData();
+    expect(md.minted).toEqual(75);
+    expect(md.effectiveSurcharge).toEqual(SURCHARGE);
+    expect(md.toNextStep).toEqual(25);
+}
+
+get fun `test minter: crossing a step — the old price is refused with the deposit returned, the new price mints and splits on the new price`() {
+    // the 100th desk was just sold: the next one (serial 100) costs twice the base
+    val mw = setupMinterAt(500, 100, 100);
+    val w = mw.w;
+    val user = testing.treasury("user");
+    giveDesk(mw, user.address, 2 * DEPOSIT);
+    val supplyBefore = mw.deskToken.getTotalSupply();
+
+    // paying the old price: nothing minted, nothing burned, the deposit comes back
+    var res = payMint(mw, user.address, DEPOSIT, SURCHARGE + MINT_GAS + ton("0.02"));
+    expect(res).toHaveSuccessfulTx<TransferNotificationForRecipient>({ to: mw.minter.address });
+    expect(res).toHaveSuccessfulTx<AskToTransfer>({ from: mw.minter.address, to: mw
+            .deskToken
+            .getWalletAddress(mw.minter.address) });
+    expect(deskBalance(mw, user.address)).toEqual(2 * DEPOSIT);
+    expect(mw.deskToken.getTotalSupply()).toEqual(supplyBefore);
+    expect(mw.minter.getMinterData().minted).toEqual(100);
+    expect(w.collection.getCollectionData().nextItemIndex).toEqual(100);
+
+    // paying the new price: minted, and Pot / protocol are paid on the doubled surcharge
+    val price = SURCHARGE * 2;
+    res = payMint(mw, user.address, DEPOSIT, price + MINT_GAS + ton("0.02"), ton("3"));
+    expect(res).toHaveSuccessfulTx<DeployDesk>({ from: mw.minter.address, to: w
+            .collection
+            .address });
+    expect(res).toHaveSuccessfulTx<PotTopUp>({ from: mw.minter.address, to: w
+            .pot
+            .address, value: price * (10000 - PROTOCOL_BPS) / 10000 });
+    expect(res).toHaveTx({ from: mw.minter.address, to: mw.protocol.address, value: price *
+        PROTOCOL_BPS /
+        10000 });
+    expect(deskBalance(mw, user.address)).toEqual(DEPOSIT);
+    expect(mw.deskToken.getTotalSupply()).toEqual(supplyBefore - DEPOSIT);
+    expect(
+        DeskItem.fromAddress(w.collection.getNftAddressByIndex(100)).getDeskData().owner,
+    ).toEqual(user.address);
+    val md = mw.minter.getMinterData();
+    expect(md.minted).toEqual(101);
+    expect(md.effectiveSurcharge).toEqual(price);
+    expect(md.toNextStep).toEqual(99);
+}
+
+get fun `test minter: the admin can change the step later without redeploying`() {
+    val mw = setupMinterAt(500, 250, 100);
+    expect(mw.minter.getMinterData().effectiveSurcharge).toEqual(SURCHARGE * 4);
+    // step of 50 → 250 / 50 = 5 doublings
+    expect(
+        mw
+            .minter
+            .sendSetDeskMinterConfig(
+                mw.w.admin.address,
+                0,
+                minterConfig(mw, mw.deskToken.getWalletAddress(mw.minter.address), 50),
+                { value: ton("0.05") },
+            ),
+    ).toHaveSuccessfulTx<SetDeskMinterConfig>({ to: mw.minter.address });
+    expect(mw.minter.getMinterData().effectiveSurcharge).toEqual(SURCHARGE * 32);
+    // back to flat
+    expect(
+        mw
+            .minter
+            .sendSetDeskMinterConfig(
+                mw.w.admin.address,
+                0,
+                minterConfig(mw, mw.deskToken.getWalletAddress(mw.minter.address), 0),
+                { value: ton("0.05") },
+            ),
+    ).toHaveSuccessfulTx<SetDeskMinterConfig>({ to: mw.minter.address });
+    expect(mw.minter.getMinterData().effectiveSurcharge).toEqual(SURCHARGE);
 }
