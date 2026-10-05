@@ -2,7 +2,7 @@
 
 Smart contracts of [ONRANK](https://t.me/OnRankBot), a coin launchpad on TON where every trading fee is split on chain:
 70% to the coin's holders (paid in USDT), 15% protocol, 10% to a Vault that buys tokenized stocks for Rank holders,
-5% buyback of $RANK. Written in **Tolk 1.4.1**, built and tested with **Acton 1.1.0**.
+5% buyback of $RANK. Written in **Tolk 1.4.1**, built and tested with **Acton 1.2.0**.
 
 This repository is the public mirror of the contract sources, published so that integrators (trading bots, wallets,
 indexers) and users can read the code that runs on mainnet and check it against the deployed accounts.
@@ -15,7 +15,8 @@ indexers) and users can read the code that runs on mainnet and check it against 
 
 | Directory | Contents |
 |---|---|
-| `contracts/launcher-v2/` | the live launcher: `FactoryV2`, `CurveV2` (bonding curve), `PoolV2` (post-graduation AMM), `RewardMasterV2` / `RewardWalletV2` (the coin's jetton, TEP-74), `RewardVaultV2` (holder rewards in USDT), `FeeSplitterV2` |
+| `contracts/launcher-dex/` | the live public launcher (since 2026-10-05): `FactoryDex3`, `CurveDex2` (bonding curve, graduation to a locked DeDust pool), `RewardMasterDex` / `RewardWalletDex` (the coin's jetton, TEP-74, with pool exclusion), `RewardVaultDex` (holder rewards in USDT), `CreatorFee`, `GasStation` |
+| `contracts/launcher-v2/` | the previous launcher (its coins keep trading): `FactoryV2`, `CurveV2` (bonding curve), `PoolV2` (post-graduation AMM), `RewardMasterV2` / `RewardWalletV2` (the coin's jetton, TEP-74), `RewardVaultV2` (holder rewards in USDT), `FeeSplitterV2` (shared with launcher-dex) |
 | `contracts/launcher/` | the first launcher (v1) — its coins are sell-only — and `BuybackVault` |
 | `contracts/pot/` | `Pot` (the Vault that buys tokenized stocks and keeps the per-Rank counters) and `PotRelay` |
 | `contracts/desk/` | `DeskMinter`, `DeskCollection`, `DeskItem` — the Rank NFTs (TEP-62) |
@@ -29,6 +30,8 @@ indexers) and users can read the code that runs on mainnet and check it against 
 
 | Contract | Address |
 |---|---|
+| FactoryDex3 (public launches) | `EQAqiT8mgpzHsRQ6dcfMB5zOqdDicsll59tPVKOoY5xSX05Y` |
+| GasStation | `EQCdG8p4dxN126sgk0b-_0P0DFuQ9npju9Eq6hzWqKGma5bt` |
 | FactoryV2 | `EQB18IIqz56m9AAwNpX0Ai61_LNa4yquhT3QRNk4geiLwdhA` |
 | Pot (Vault) | `EQCpS9EiKrk0W7pCEybeKiCbzLL1b-CSTeiHHgVGKCQD5Mc1` |
 | PotRelay | `EQBv-rQifdeTG6AMWw9OEp9x9YLEBGs__tkWj5sy8ulgiOFT` |
@@ -53,7 +56,7 @@ The script asks toncenter for each account's `code_hash` and compares it with `b
 
 ## Build and test
 
-Install [Acton](https://github.com/ton-blockchain/acton) 1.1.0 (the version is pinned in `Acton.toml`), then:
+Install [Acton](https://github.com/ton-blockchain/acton) 1.2.0 (the version is pinned in `Acton.toml`), then:
 
 ```bash
 acton build      # compiles every contract into build/*.json — the hashes must match the committed snapshot
@@ -64,9 +67,10 @@ acton test       # runs tests/
 
 ## Reading the code
 
-Start with `contracts/launcher-v2/CurveV2.tolk` (buy / sell / graduation), then `PoolV2.tolk` (swaps after
-graduation) and `RewardMasterV2.tolk` (how a sale is routed from the holder's wallet to the live market). The event
-layouts every contract emits are documented in [`docs/EVENTS.md`](./docs/EVENTS.md).
+For coins launched today, start with `contracts/launcher-dex/FactoryDex3.tolk` (the public `LaunchDexPublic` entry
+point), then `CurveDex2.tolk` (buy / sell / graduation into a locked DeDust pool). For the previous generation,
+`contracts/launcher-v2/CurveV2.tolk`, `PoolV2.tolk` and `RewardMasterV2.tolk` (how a sale is routed from the holder's
+wallet to the live market). The event layouts every contract emits are documented in [`docs/EVENTS.md`](./docs/EVENTS.md).
 
 ## Security
 

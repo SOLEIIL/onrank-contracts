@@ -32,6 +32,10 @@ Semantics that matter for a trading integration:
 - **CurveGraduated** is emitted once; from then on the coin trades on `pool` and the curve refuses `Buy` (478).
 - **PoolSwap.reserveTon / reserveCoin** are the pool state after the swap: `price = reserveTon / reserveCoin`.
 - **RewardPaid** is a USDT (or other reward jetton) payout to a holder — not a trade.
+- **Coins launched on FactoryDex3** (since 2026-10-05): `CurveDex2` emits the same `CurveTrade` / `CurveGraduated`
+  topics (check its code hash). There is no `LaunchCreated` event — discover new coins through `GET /api/v1/coins`.
+  After graduation the coin trades on its DeDust pool (`dedustPool` in the API), so there are no `PoolSwap` events:
+  use `GET /api/v1/trades` or DeDust's own tooling. `RewardVaultDex` / `RewardMasterDex` emit the same reward topics.
 
 ## Vault (Pot) and Ranks
 

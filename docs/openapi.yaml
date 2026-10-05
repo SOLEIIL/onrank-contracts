@@ -279,6 +279,11 @@ components:
           type:
             - string
             - "null"
+        dedustPool:
+          type:
+            - string
+            - "null"
+          description: "Coins launched since 2026-10-05 graduate to a locked DeDust pool: set after graduation, the coin then trades there (market stays \"pool\"). /tx builds the DeDust messages."
         market:
           type: string
           enum:

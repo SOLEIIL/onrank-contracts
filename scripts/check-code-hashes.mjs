@@ -29,6 +29,9 @@ const targets = [
   ["RewardMasterV2", rank?.master],
   ["CurveV2", rank?.curve],
   ["PoolV2", rank?.pool],
+  // launcher-dex (public launches since 2026-10-05, graduation to DeDust): addresses are immutable, not in /api/config
+  ["FactoryDex3", "EQAqiT8mgpzHsRQ6dcfMB5zOqdDicsll59tPVKOoY5xSX05Y"],
+  ["GasStation", "EQCdG8p4dxN126sgk0b-_0P0DFuQ9npju9Eq6hzWqKGma5bt"],
 ].filter(([, a]) => a);
 if (process.env.POT_RELAY) targets.push(["PotRelay", process.env.POT_RELAY]);
 

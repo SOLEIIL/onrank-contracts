@@ -92,7 +92,14 @@ sold and claimed but not bought; do not route buys to them. The current $RANK is
 
 | Contract | Address | Code hash (base64) |
 |---|---|---|
-| FactoryV2 | `EQB18IIqz56m9AAwNpX0Ai61_LNa4yquhT3QRNk4geiLwdhA` | `UhyECvtffP/+4hoszJv5w2jH21HAO81k0g4e78RWqBk=` |
+| FactoryDex3 (public launches since 2026-10-05) | `EQAqiT8mgpzHsRQ6dcfMB5zOqdDicsll59tPVKOoY5xSX05Y` | `vCgj4/7SZyQJWuITanh7qb8L8uaKmkJ/r+CS6vnjda8=` |
+| GasStation (keeper gas for creator-fee claims) | `EQCdG8p4dxN126sgk0b-_0P0DFuQ9npju9Eq6hzWqKGma5bt` | `u3BLYqRJfpcmBX1KceV7Gku/WwJXPdOMuvyPPGAnblk=` |
+| CurveDex2 (one per coin, graduates to a locked DeDust pool) | from API (`curve`) | `JQmaYwoR5eFLfn0KxffhMPZkGPkw0XUoFGnsrk+tu8M=` |
+| RewardMasterDex (the coin's jetton master) | from API (`master`) | `nYrRvKweQHE08AuI+3qHLCwUGuByiV0OGAhgLI/TUDE=` |
+| RewardWalletDex (the holder's jetton wallet) | `get_wallet_address(owner)` on the master | `4Wb+N/pAOREjAp2jlT1COdBvMm833i6wvF8HdmfAF+w=` |
+| RewardVaultDex (one per coin) | from API | `5itX4gie3tJMr29uUZYKLICBUzaZhAUiQTCQLe3T5WI=` |
+| CreatorFee (one per coin) | deployed at launch | `58nQm1TTF93/WasUb27nGi7f06Qp8jquLtCvHGUHXMU=` |
+| FactoryV2 (launches before 2026-10-05) | `EQB18IIqz56m9AAwNpX0Ai61_LNa4yquhT3QRNk4geiLwdhA` | `UhyECvtffP/+4hoszJv5w2jH21HAO81k0g4e78RWqBk=` |
 | CurveV2 (one per coin) | from `LaunchCreated` / API | `x1+u3TP0Q7h7k/X9GByNy6WqOCvnJ4KVL1hR7t2tWcM=` |
 | PoolV2 (one per graduated coin) | from `CurveGraduated` / API | `4yPKye3U58+n21m6EC5vdwvii5A10umUOjjR2elP9t8=` |
 | RewardMasterV2 (the coin's jetton master) | from `LaunchCreated` / API | `XSZIxXypgXYGEwADqjEcTRTu9mXqu1xb+z7Vu/3fjBw=` |
@@ -282,6 +289,12 @@ there, and `/api/coins/by-address/<address>` gives the `seq`). A `ref_<code>` ea
 10% of the protocol's share of that user's fees (paid out by the team). **Trades sent directly on-chain by a bot carry
 no referral code** — attribution only exists inside the app. If you route users to the app for a coin page, use the
 deep link above.
+
+A coin link may open the page on one of its sections: `startapp=coin_<id>-holders` opens the coin with its **full
+holders list** (every wallet with a balance, biggest first, web: `https://onrank.lol/coins/<id>?tab=holders`). The same
+list is served by `GET /api/coins/<seq>/holders?offset=0&limit=100` → `{ items, total, offset }` (limit ≤ 100).
+`holders` is the only section for now; any other suffix is not a deep link. The `-ref_<code>` part combines with it in
+either order.
 
 ## 8. Embeddable Swap widget
 

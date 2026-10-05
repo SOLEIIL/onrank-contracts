@@ -5,7 +5,7 @@ version = "0.1.0"
 license = "MIT"
 
 [toolchain]
-acton = "1.1.0"
+acton = "1.2.0"
 
 # --- Desk system -----------------------------------------------------------
 [contracts.DeskCollection]
@@ -110,10 +110,98 @@ display-name = "FactoryV2"
 src = "contracts/launcher-v2/FactoryV2.tolk"
 depends = []
 
+# --- Future DeDust factory (not deployed; live v2 sources stay the mainnet code) ---
+[contracts.RewardWalletDex]
+display-name = "RewardWalletDex"
+src = "contracts/launcher-dex/RewardWalletDex.tolk"
+depends = []
+
+[contracts.RewardMasterDex]
+display-name = "RewardMasterDex"
+src = "contracts/launcher-dex/RewardMasterDex.tolk"
+depends = ["RewardWalletDex"]
+
+[contracts.CurveDex]
+display-name = "CurveDex"
+src = "contracts/launcher-dex/CurveDex.tolk"
+depends = ["PoolV2"]
+
+# CurveDex plus the public RetryDedustConfirm anti-freeze net (the DESTT fix). Pairs with FactoryDexTest2.
+[contracts.CurveDex2]
+display-name = "CurveDex2"
+src = "contracts/launcher-dex/CurveDex2.tolk"
+depends = ["PoolV2"]
+
+[contracts.CreatorFee]
+display-name = "CreatorFee"
+src = "contracts/launcher-dex/CreatorFee.tolk"
+depends = []
+
+[contracts.GasStation]
+display-name = "GasStation"
+src = "contracts/launcher-dex/GasStation.tolk"
+depends = []
+
+[contracts.FactoryDex]
+display-name = "FactoryDex"
+src = "contracts/launcher-dex/FactoryDex.tolk"
+depends = ["RewardMasterDex", "CurveDex", "CreatorFee", "FeeSplitterV2"]
+
+# Sandbox copy of FactoryDex (graduation ~10 GRAM): one-off mainnet graduation rehearsal, never public.
+[contracts.FactoryDexTest]
+display-name = "FactoryDexTest"
+src = "contracts/launcher-dex/FactoryDexTest.tolk"
+depends = ["RewardMasterDex", "CurveDex", "CreatorFee", "FeeSplitterV2"]
+
+# Second rehearsal factory: FactoryDexTest plus the ConfirmDedustDeposit relay (the DESTT fix).
+[contracts.FactoryDexTest2]
+display-name = "FactoryDexTest2"
+src = "contracts/launcher-dex/FactoryDexTest2.tolk"
+depends = ["RewardMasterDex", "CurveDex2", "CreatorFee", "FeeSplitterV2"]
+
+# RewardVaultV2 for launcher-dex coins: the only change is the dex wallet-address auth (see the file header).
+[contracts.RewardVaultDex]
+display-name = "RewardVaultDex"
+src = "contracts/launcher-dex/RewardVaultDex.tolk"
+depends = []
+
+# Live replacement of FactoryDex: same economics (graduation ~1494.5 GRAM), plus the relay + CurveDex2 net.
+[contracts.FactoryDex2]
+display-name = "FactoryDex2"
+src = "contracts/launcher-dex/FactoryDex2.tolk"
+depends = ["RewardMasterDex", "CurveDex2", "CreatorFee", "FeeSplitterV2"]
+
+# Public launcher-dex factory: user launches at the FactoryV2 price, fixed fee routes, RewardVaultDex dividends.
+[contracts.FactoryDex3]
+display-name = "FactoryDex3"
+src = "contracts/launcher-dex/FactoryDex3.tolk"
+depends = ["RewardMasterDex", "CurveDex2", "CreatorFee", "FeeSplitterV2", "RewardVaultDex"]
+
+# Sandbox FactoryDex3 (~10 GRAM graduation): mainnet rehearsal of the public launch, never user-facing.
+[contracts.FactoryDexTest3]
+display-name = "FactoryDexTest3"
+src = "contracts/launcher-dex/FactoryDexTest3.tolk"
+depends = ["RewardMasterDex", "CurveDex2", "CreatorFee", "FeeSplitterV2", "RewardVaultDex"]
+
 # --- Test only: DeDust look-alike for testnet rehearsals (never deployed on mainnet) ---
 [contracts.MockDex]
 display-name = "MockDex"
 src = "contracts/test/MockDex.tolk"
+depends = []
+
+[contracts.NotifyProbe]
+display-name = "NotifyProbe"
+src = "contracts/test/NotifyProbe.tolk"
+depends = []
+
+[contracts.StrictNotify]
+display-name = "StrictNotify"
+src = "contracts/test/StrictNotify.tolk"
+depends = []
+
+[contracts.FeeSink]
+display-name = "FeeSink"
+src = "contracts/test/FeeSink.tolk"
 depends = []
 
 # --- Test fixtures: standard TEP-74 jetton (vendored from the Acton template) --------
