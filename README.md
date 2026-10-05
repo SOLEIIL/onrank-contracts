@@ -39,12 +39,9 @@ indexers) and users can read the code that runs on mainnet and check it against 
 | DeskCollection | `EQBKCClSs3RhzCXqQrLf8uyUPUBuCmU4P4YGY51tJyNMYgMe` |
 | BuybackVault | `EQBtLFO9DvXI6WV0uraqVWu6qH8o7gQbk6Awfxg7Kj8Z_phO` |
 
-Per-coin contracts (master, curve, pool, splitter, vault) are created by the Factory; find them in the `LaunchCreated`
-event or through `GET https://onrank.lol/api/v1/coins`. Code hashes of every family are listed in
-[`docs/README.md`](./docs/README.md#2-contracts-mainnet).
-
-| Contract | Code hash (v1.1) |
-|---|---|
+Per-coin contracts (master, curve, pool, splitter, vault) are created by the factories; find them through
+`GET https://onrank.lol/api/v1/coins` (or the `LaunchCreated` event for FactoryV2 coins). Code hashes of every family
+are listed in [`docs/README.md`](./docs/README.md#2-contracts-mainnet).
 
 ## Check the deployed code yourself
 
